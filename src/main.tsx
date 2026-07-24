@@ -20,6 +20,7 @@ type Announcement = { sequence: number; text: string };
 const storageKey = 'book-margin-demo-v2';
 const catalogVersion = 4;
 const schemaVersion = 1;
+const adminDemoEnabled = import.meta.env.DEV;
 type CatalogDocument = { schemaVersion: number; catalogVersion: number; categories: string[]; books: Book[] };
 type PersistedStore = Store & { sourceFingerprint?: string };
 const makeCover = (title: string, color: string) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800"><rect width="600" height="800" fill="${color}"/><rect x="38" y="38" width="524" height="724" fill="none" stroke="#ffffff" stroke-opacity=".45"/><text x="72" y="610" fill="#ffffff" font-family="Georgia,serif" font-size="36">${title}</text><text x="72" y="678" fill="#ffffff" font-family="Arial,sans-serif" font-size="16" letter-spacing="4">BOOK MARGIN</text></svg>`)}`;
@@ -239,7 +240,7 @@ function App() {
         <main className="public-shelf">
           <PageFrame>
             <PublicIntro heading={publicHeading} />
-            <div className="utility-row"><button className="admin-entry" onClick={() => setSurface('management')}>관리자 데모</button></div>
+            {adminDemoEnabled && <div className="utility-row"><button className="admin-entry" onClick={() => setSurface('management')}>관리자 데모</button></div>}
             <ShelfControls categories={store.categories} selected={selected} toggle={(category) => setCatalog((current) => ({ ...current, selectedCategories: current.selectedCategories.includes(category) ? current.selectedCategories.filter((item) => item !== category) : [...current.selectedCategories, category] }))} />
             <BookGrid books={visible} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
             <ShelfFooter />
