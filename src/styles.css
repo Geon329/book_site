@@ -148,12 +148,14 @@ input { min-height: 44px; padding: 0 10px; }
 .grid {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
   justify-content: center;
   gap: 44px 24px;
   min-width: 0;
   padding-top: 40px;
 }
 .book-card {
+  display: block;
   flex: 0 1 calc((100% - 24px) / 2);
   min-width: 0;
   padding: 0;
@@ -203,7 +205,6 @@ input { min-height: 44px; padding: 0 10px; }
   gap: 4px;
 }
 .book-card-copy strong,
-.book-card-copy em,
 .book-creators,
 .category {
   display: block;
@@ -216,15 +217,9 @@ input { min-height: 44px; padding: 0 10px; }
   letter-spacing: -.025em;
   text-wrap: pretty;
 }
-.book-card-copy em,
 .book-creators,
 .category {
   color: var(--muted);
-}
-.book-card-copy em {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
 }
 .book-creators {
   margin-top: 2px;

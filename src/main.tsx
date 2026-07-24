@@ -21,6 +21,13 @@ const storageKey = 'book-margin-demo-v2';
 const catalogVersion = 4;
 const schemaVersion = 1;
 const adminDemoEnabled = import.meta.env.DEV;
+const publicCategoryLabels: Readonly<Record<string, string>> = {
+  픽션: 'Fiction',
+  그림책: 'Picture Books',
+  교육만화: 'Educational Comics',
+  그래픽노블: 'Graphic Novels',
+};
+const publicCategoryLabel = (category: string) => publicCategoryLabels[category] ?? category;
 type CatalogDocument = { schemaVersion: number; catalogVersion: number; categories: string[]; books: Book[] };
 type PersistedStore = Store & { sourceFingerprint?: string };
 const makeCover = (title: string, color: string) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800"><rect width="600" height="800" fill="${color}"/><rect x="38" y="38" width="524" height="724" fill="none" stroke="#ffffff" stroke-opacity=".45"/><text x="72" y="610" fill="#ffffff" font-family="Georgia,serif" font-size="36">${title}</text><text x="72" y="678" fill="#ffffff" font-family="Arial,sans-serif" font-size="16" letter-spacing="4">BOOK MARGIN</text></svg>`)}`;
@@ -279,7 +286,7 @@ function PublicIntro({ heading }: { heading: React.RefObject<HTMLHeadingElement 
 function ShelfFooter() {
   return <footer className="shelf-footer"><span className="shelf-footer-mark" aria-hidden="true" /><p>The ChoiceMaker Korea <span aria-hidden="true">·</span> Featured Books</p></footer>;
 }
-function ShelfControls({ categories, selected, toggle }: { categories: string[]; selected: string[]; toggle: (category: string) => void }) { return <div className="filters" role="group" aria-label="카테고리 필터">{categories.filter((category) => category !== '보관').map((category) => { const active = selected.includes(category); return <button key={category} className={active ? 'active' : ''} aria-pressed={active} onClick={() => toggle(category)}>{category}</button>; })}</div>; }
+function ShelfControls({ categories, selected, toggle }: { categories: string[]; selected: string[]; toggle: (category: string) => void }) { return <div className="filters" role="group" aria-label="카테고리 필터">{categories.filter((category) => category !== '보관').map((category) => { const active = selected.includes(category); return <button key={category} className={active ? 'active' : ''} aria-pressed={active} onClick={() => toggle(category)}>{publicCategoryLabel(category)}</button>; })}</div>; }
 function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; selected: boolean; hasActiveBooks: boolean }) {
   const reduceMotion = useReducedMotion() ?? false;
   const cardTransition = { duration: 0.22, ease: 'easeOut' as const };
@@ -302,9 +309,8 @@ function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; 
           >
             <BookCover book={book} />
             <span className="book-card-copy">
-              <span className="category">{book.categories.filter((item) => item !== '보관').join(' · ')}</span>
-              <strong>{book.title}</strong>
-              <em>{book.english}</em>
+              <span className="category">{book.categories.filter((item) => item !== '보관').map(publicCategoryLabel).join(' · ')}</span>
+              <strong>{book.english || book.title}</strong>
               <small className="book-creators">{creator} · {book.publisher}</small>
             </span>
           </motion.button>;

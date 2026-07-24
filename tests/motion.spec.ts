@@ -35,6 +35,11 @@ test.describe('book shelf motion', () => {
     await expect(page.getByRole('img', { name: 'The ChoiceMaker Korea' })).toBeVisible();
     await expect(page.locator('.shelf-footer')).toHaveText('The ChoiceMaker Korea · Featured Books');
     await expect(page.locator('.book-card')).toHaveCount(13);
+    await expect(page.getByRole('button', { name: 'Fiction', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Picture Books', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Educational Comics', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Graphic Novels', exact: true })).toBeVisible();
+    await expect(page.locator('.book-card').first().locator('strong')).toHaveText('Hunter Girl 1: The Mirror Goddess');
 
     const before = await page.evaluate(() => ({
       clientWidth: document.documentElement.clientWidth,
@@ -42,8 +47,8 @@ test.describe('book shelf motion', () => {
       scrollWidth: document.documentElement.scrollWidth,
     }));
 
-    await page.getByRole('button', { name: '그래픽노블', exact: true }).click();
-    await expect(page.getByRole('button', { name: '그래픽노블', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Graphic Novels', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Graphic Novels', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.waitForTimeout(320);
 
     const filtered = await page.evaluate(() => ({
@@ -54,10 +59,29 @@ test.describe('book shelf motion', () => {
     expect(filtered.clientWidth).toBe(before.clientWidth);
     expect(filtered.scrollWidth).toBeLessThanOrEqual(filtered.clientWidth);
 
-    await page.getByRole('button', { name: '그래픽노블', exact: true }).click();
+    await page.getByRole('button', { name: 'Graphic Novels', exact: true }).click();
     await page.waitForTimeout(320);
     const restored = await page.evaluate(() => document.documentElement.clientWidth);
     expect(restored).toBe(before.clientWidth);
+  });
+  test('flows card titles naturally without disturbing grid rows', async ({ page }) => {
+    await page.goto('/');
+    const layout = await page.locator('.book-card').evaluateAll((cards) => cards.slice(0, 8).map((card) => {
+      const cover = card.querySelector<HTMLElement>('.cover-frame')!;
+      const title = card.querySelector<HTMLElement>('strong')!;
+      const creator = card.querySelector<HTMLElement>('.book-creators')!;
+      return {
+        coverTop: Math.round(cover.getBoundingClientRect().top),
+        creatorTop: Math.round(creator.getBoundingClientRect().top),
+        titleMinBlockSize: getComputedStyle(title).minBlockSize,
+      };
+    }));
+
+    expect(new Set(layout.slice(0, 4).map((card) => card.coverTop)).size).toBe(1);
+    expect(new Set(layout.slice(4).map((card) => card.coverTop)).size).toBe(1);
+    expect(layout[4].coverTop).toBeGreaterThan(layout[0].coverTop);
+    expect(layout[1].creatorTop).toBeLessThan(layout[0].creatorTop);
+    expect(layout[0].titleMinBlockSize).toBe('auto');
   });
   test('fades in loaded covers without changing their geometry', async ({ page }) => {
     await page.goto('/');
@@ -215,7 +239,7 @@ test.describe('book shelf motion', () => {
     await page.reload();
     const initialBookCount = await page.getByRole('region', { name: '책 목록' }).getByRole('button').count();
 
-    await page.getByRole('button', { name: '그래픽노블', exact: true }).click();
+    await page.getByRole('button', { name: 'Graphic Novels', exact: true }).click();
     await openManagement(page);
 
     const importFile = page.getByLabel(/카탈로그 JSON/);
@@ -248,13 +272,13 @@ test.describe('book shelf motion', () => {
 
     const publicCatalog = page.getByRole('region', { name: '책 목록' });
     await expect(publicCatalog.getByRole('button')).toHaveCount(initialBookCount + 1);
-    await expect(publicCatalog.getByRole('button', { name: /가져온 테스트 책/ })).toBeVisible();
+    await expect(publicCatalog.getByRole('button', { name: /Imported Test Book/ })).toBeVisible();
     await expect(page.getByRole('button', { name: '가져오기 테스트', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: '보관', exact: true })).toHaveCount(0);
 
     await page.reload();
     await expect(publicCatalog.getByRole('button')).toHaveCount(initialBookCount + 1);
-    await expect(publicCatalog.getByRole('button', { name: /가져온 테스트 책/ })).toBeVisible();
+    await expect(publicCatalog.getByRole('button', { name: /Imported Test Book/ })).toBeVisible();
   });
 
   test('keeps the existing catalog when JSON imports are invalid', async ({ page }) => {
@@ -297,6 +321,6 @@ test.describe('book shelf motion', () => {
 
     const publicCatalog = page.getByRole('region', { name: '책 목록' });
     await expect(publicCatalog.getByRole('button')).toHaveCount(13);
-    await expect(publicCatalog.getByRole('button', { name: /가져온 테스트 책/ })).toHaveCount(0);
+    await expect(publicCatalog.getByRole('button', { name: /Imported Test Book/ })).toHaveCount(0);
   });
 });
