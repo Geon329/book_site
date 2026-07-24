@@ -1,0 +1,15 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+artifacts/
+.gjc/
+.env
+.env.*
+!.env.example
+*.log
+*:Zone.Identifier
+.claude/
+qa-*.png
+book-site-qa-*.png
+post-fix-qa*.png
