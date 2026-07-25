@@ -244,14 +244,13 @@ function App() {
   return <>
     <div id="app-shell">
       {surface === 'public' ? (
-        <main className="public-shelf">
+        <main id="top" className="public-shelf">
           <PageFrame>
-            <PublicIntro heading={publicHeading} />
-            {adminDemoEnabled && <div className="utility-row"><button className="admin-entry" onClick={() => setSurface('management')}>관리자 데모</button></div>}
+            <PublicHeader heading={publicHeading} onOpenManagement={() => setSurface('management')} />
             <ShelfControls categories={store.categories} selected={selected} toggle={(category) => setCatalog((current) => ({ ...current, selectedCategories: current.selectedCategories.includes(category) ? current.selectedCategories.filter((item) => item !== category) : [...current.selectedCategories, category] }))} />
             <BookGrid books={visible} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
-            <ShelfFooter />
           </PageFrame>
+          <ShelfFooter />
         </main>
       ) : (
         <ManagementWorkspace
@@ -276,15 +275,30 @@ function App() {
   </>;
 }
 function PageFrame({ children }: { children: React.ReactNode }) { return <div className="page-frame">{children}</div>; }
-function PublicIntro({ heading }: { heading: React.RefObject<HTMLHeadingElement | null> }) {
-  return <header className="shelf-intro">
-    <img className="shelf-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" />
-    <h1 ref={heading} tabIndex={-1}>The ChoiceMaker Korea — Featured Books</h1>
-    <span className="shelf-title-mark" aria-hidden="true" />
+function PublicHeader({ heading, onOpenManagement }: { heading: React.RefObject<HTMLHeadingElement | null>; onOpenManagement: () => void }) {
+  return <header className="public-header">
+    <h1 className="public-header-title" ref={heading} tabIndex={-1}>Featured Books</h1>
+    <div className="public-header-brand"><img className="public-header-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" /><p>The ChoiceMaker Korea</p></div>
+    <div className="public-header-actions">{adminDemoEnabled && <button className="admin-entry" onClick={onOpenManagement}>관리자 데모</button>}</div>
   </header>;
 }
 function ShelfFooter() {
-  return <footer className="shelf-footer"><span className="shelf-footer-mark" aria-hidden="true" /><p>The ChoiceMaker Korea <span aria-hidden="true">·</span> Featured Books</p></footer>;
+  return <footer className="shelf-footer">
+    <section className="shelf-footer-cta" aria-labelledby="footer-curation-title">
+      <div className="shelf-footer-inner">
+        <p className="shelf-footer-kicker">FEATURED BOOKS</p>
+        <h2 id="footer-curation-title">The ChoiceMaker Korea</h2>
+        <p>오래 기억될 이야기를 함께 소개합니다.</p>
+      </div>
+    </section>
+    <section className="shelf-footer-meta" aria-label="큐레이션 정보">
+      <div className="shelf-footer-inner">
+        <p>The ChoiceMaker Korea <span aria-hidden="true">·</span> Featured Books</p>
+        <p>Yes24 책 정보를 바탕으로 구성했습니다.</p>
+        <a href="#top">Back to top ↑</a>
+      </div>
+    </section>
+  </footer>;
 }
 function ShelfControls({ categories, selected, toggle }: { categories: string[]; selected: string[]; toggle: (category: string) => void }) { return <div className="filters" role="group" aria-label="카테고리 필터">{categories.filter((category) => category !== '보관').map((category) => { const active = selected.includes(category); return <button key={category} className={active ? 'active' : ''} aria-pressed={active} onClick={() => toggle(category)}>{publicCategoryLabel(category)}</button>; })}</div>; }
 function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; selected: boolean; hasActiveBooks: boolean }) {

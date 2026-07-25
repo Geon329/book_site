@@ -31,15 +31,63 @@ async function openManagement(page: import('@playwright/test').Page) {
 test.describe('book shelf motion', () => {
   test('keeps the shelf stable while filtered cards reflow', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea — Featured Books' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Featured Books', level: 1 })).toBeVisible();
     await expect(page.getByRole('img', { name: 'The ChoiceMaker Korea' })).toBeVisible();
-    await expect(page.locator('.shelf-footer')).toHaveText('The ChoiceMaker Korea · Featured Books');
+    await expect(page.locator('.public-header-brand')).toHaveText('The ChoiceMaker Korea');
+    await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', level: 2 })).toBeVisible();
+    await expect(page.getByText('Yes24 책 정보를 바탕으로 구성했습니다.')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Back to top ↑' })).toHaveAttribute('href', '#top');
     await expect(page.locator('.book-card')).toHaveCount(13);
     await expect(page.getByRole('button', { name: 'Fiction', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Picture Books', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Educational Comics', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Graphic Novels', exact: true })).toBeVisible();
     await expect(page.locator('.book-card').first().locator('strong')).toHaveText('Hunter Girl 1: The Mirror Goddess');
+    const publisherShell = await page.locator('.public-header').evaluate((header) => {
+      const titleElement = header.querySelector<HTMLElement>('.public-header-title')!;
+      const logo = header.querySelector<HTMLElement>('.public-header-logo')!.getBoundingClientRect();
+      const actionsElement = header.querySelector<HTMLElement>('.public-header-actions')!;
+      const actions = actionsElement.getBoundingClientRect();
+      const brand = header.querySelector<HTMLElement>('.public-header-brand')!;
+      const label = brand.querySelector<HTMLElement>('p')!;
+      const labelRect = label.getBoundingClientRect();
+      const firstCategoryElement = document.querySelector<HTMLElement>('.filters button')!;
+      const firstCategory = firstCategoryElement.getBoundingClientRect();
+      const title = titleElement.getBoundingClientRect();
+      const headerRect = header.getBoundingClientRect();
+      return {
+        bottomBorderWidth: getComputedStyle(header).borderBottomWidth,
+        headerTop: Math.round(headerRect.top),
+        titleBeforeLogo: title.right <= logo.left,
+        logoBeforeActions: logo.right <= actions.left,
+        logoCentered: Math.abs((logo.left + logo.width / 2) - (headerRect.left + headerRect.width / 2)) <= 1,
+        logoWidth: logo.width,
+        hasBrandLabel: brand.textContent === 'The ChoiceMaker Korea',
+        titleFontFamily: getComputedStyle(titleElement).fontFamily,
+        actionFontFamily: getComputedStyle(header.querySelector('.admin-entry')!).fontFamily,
+        categoryFontFamily: getComputedStyle(firstCategoryElement).fontFamily,
+        titleAlignedToBrandLabel: Math.abs((title.top + title.height / 2) - (labelRect.top + labelRect.height / 2)) <= 1,
+        actionAlignedToBrandLabel: Math.abs((actions.top + actions.height / 2) - (labelRect.top + labelRect.height / 2)) <= 1,
+        brandFontFamily: getComputedStyle(label).fontFamily,
+        brandFontSize: Number.parseFloat(getComputedStyle(label).fontSize),
+        categoryBreathingSpace: Math.round(firstCategory.top - headerRect.bottom),
+      };
+    });
+    expect(publisherShell.bottomBorderWidth).toBe('0px');
+    expect(publisherShell.headerTop).toBe(2);
+    expect(publisherShell.titleBeforeLogo).toBe(true);
+    expect(publisherShell.logoBeforeActions).toBe(true);
+    expect(publisherShell.logoCentered).toBe(true);
+    expect(publisherShell.logoWidth).toBeGreaterThanOrEqual(82);
+    expect(publisherShell.hasBrandLabel).toBe(true);
+    expect(publisherShell.titleFontFamily).toBe(publisherShell.categoryFontFamily);
+    expect(publisherShell.actionFontFamily).toContain('Noto Serif KR');
+    expect(publisherShell.titleAlignedToBrandLabel).toBe(true);
+    expect(publisherShell.actionAlignedToBrandLabel).toBe(true);
+    expect(publisherShell.brandFontFamily).toContain('Bricolage Grotesque');
+    expect(publisherShell.brandFontSize).toBeGreaterThanOrEqual(20);
+    expect(publisherShell.brandFontSize).toBeLessThanOrEqual(26);
+    expect(publisherShell.categoryBreathingSpace).toBeGreaterThanOrEqual(32);
 
     const before = await page.evaluate(() => ({
       clientWidth: document.documentElement.clientWidth,
@@ -50,6 +98,29 @@ test.describe('book shelf motion', () => {
     await page.getByRole('button', { name: 'Graphic Novels', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Graphic Novels', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.waitForTimeout(320);
+    const categoryStyles = await page.locator('.filters').evaluate((filters) => {
+      const active = filters.querySelector<HTMLElement>('button.active')!;
+      const filterStyles = getComputedStyle(filters);
+      const activeStyles = getComputedStyle(active);
+      return {
+        borderTopWidth: filterStyles.borderTopWidth,
+        borderBottomWidth: filterStyles.borderBottomWidth,
+        activeBackground: activeStyles.backgroundColor,
+        activeBorderBottomColor: activeStyles.borderBottomColor,
+        activeBorderBottomWidth: activeStyles.borderBottomWidth,
+        activeColor: activeStyles.color,
+        activeFontSize: activeStyles.fontSize,
+        activeMinHeight: activeStyles.minHeight,
+      };
+    });
+    expect(categoryStyles.borderTopWidth).toBe('0px');
+    expect(categoryStyles.borderBottomWidth).toBe('1px');
+    expect(categoryStyles.activeBackground).toBe('rgba(0, 0, 0, 0)');
+    expect(categoryStyles.activeBorderBottomColor).toBe('rgb(111, 157, 58)');
+    expect(categoryStyles.activeBorderBottomWidth).toBe('2px');
+    expect(categoryStyles.activeColor).toBe('rgb(32, 43, 53)');
+    expect(categoryStyles.activeFontSize).toBe('14px');
+    expect(categoryStyles.activeMinHeight).toBe('44px');
 
     const filtered = await page.evaluate(() => ({
       clientWidth: document.documentElement.clientWidth,
@@ -63,6 +134,30 @@ test.describe('book shelf motion', () => {
     await page.waitForTimeout(320);
     const restored = await page.evaluate(() => document.documentElement.clientWidth);
     expect(restored).toBe(before.clientWidth);
+  });
+  test('keeps the enlarged brand lockup within the mobile header', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    const header = await page.locator('.public-header').evaluate((element) => {
+      const logo = element.querySelector<HTMLElement>('.public-header-logo')!;
+      const label = element.querySelector<HTMLElement>('.public-header-brand p')!;
+      const actions = element.querySelector<HTMLElement>('.public-header-actions')!;
+      const box = (node: HTMLElement) => node.getBoundingClientRect();
+      return {
+        logoWidth: Math.round(box(logo).width),
+        labelFontSize: Number.parseFloat(getComputedStyle(label).fontSize),
+        labelFits: label.scrollWidth <= label.clientWidth,
+        labelBelowActions: box(label).top >= box(actions).bottom,
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      };
+    });
+    expect(header.logoWidth).toBe(82);
+    expect(header.labelFontSize).toBeGreaterThanOrEqual(18);
+    expect(header.labelFontSize).toBeLessThanOrEqual(20);
+    expect(header.labelFits).toBe(true);
+    expect(header.labelBelowActions).toBe(true);
+    expect(header.scrollWidth).toBeLessThanOrEqual(header.clientWidth);
   });
   test('flows card titles naturally without disturbing grid rows', async ({ page }) => {
     await page.goto('/');
