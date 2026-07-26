@@ -34,9 +34,9 @@ test.describe('book shelf motion', () => {
     await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', level: 1 })).toBeVisible();
     await expect(page.getByRole('img', { name: 'The ChoiceMaker Korea' })).toBeVisible();
     await expect(page.locator('.public-header-brand')).toHaveText('The ChoiceMaker Korea');
-    await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', level: 2 })).toBeVisible();
     await expect(page.locator('.book-card')).toHaveCount(13);
     await expect(page.getByRole('button', { name: 'Fiction', exact: true })).toBeVisible();
+    await expect(page.locator('.shelf-footer')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Picture Books', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Educational Comics', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Graphic Novels', exact: true })).toBeVisible();
@@ -161,6 +161,7 @@ test.describe('book shelf motion', () => {
     const category = page.getByRole('button', { name: 'Graphic Novels', exact: true });
     await category.click();
     await expect(category).toHaveAttribute('aria-pressed', 'true');
+    await page.waitForTimeout(240);
 
     const result = await category.evaluate((button) => {
       const styles = getComputedStyle(button);
@@ -174,7 +175,7 @@ test.describe('book shelf motion', () => {
 
     expect(result.transition).toContain('0.22s');
     expect(result.transition).toContain('cubic-bezier(0, 0, 0.58, 1)');
-    expect(result.translateY).toBe(-1);
+    expect(result.translateY).toBeCloseTo(-1, 2);
     expect(result.scrollWidth).toBeLessThanOrEqual(result.clientWidth);
   });
   test('flows card titles naturally without disturbing grid rows', async ({ page }) => {

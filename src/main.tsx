@@ -250,7 +250,6 @@ function App() {
             <ShelfControls categories={store.categories} selected={selected} toggle={(category) => setCatalog((current) => ({ ...current, selectedCategories: current.selectedCategories.includes(category) ? current.selectedCategories.filter((item) => item !== category) : [...current.selectedCategories, category] }))} />
             <BookGrid books={visible} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
           </PageFrame>
-          <ShelfFooter />
         </main>
       ) : (
         <ManagementWorkspace
@@ -280,22 +279,6 @@ function PublicHeader({ heading, onOpenManagement }: { heading: React.RefObject<
     <div className="public-header-brand"><img className="public-header-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" /><h1 ref={heading} tabIndex={-1}>The ChoiceMaker Korea</h1></div>
     <div className="public-header-actions">{adminDemoEnabled && <button className="admin-entry" onClick={onOpenManagement}>관리자 데모</button>}</div>
   </header>;
-}
-function ShelfFooter() {
-  return <footer className="shelf-footer">
-    <section className="shelf-footer-cta" aria-labelledby="footer-curation-title">
-      <div className="shelf-footer-inner">
-        <p className="shelf-footer-kicker">FEATURED BOOKS</p>
-        <h2 id="footer-curation-title">The ChoiceMaker Korea</h2>
-        <p>오래 기억될 이야기를 함께 소개합니다.</p>
-      </div>
-    </section>
-    <section className="shelf-footer-meta" aria-label="큐레이션 정보">
-      <div className="shelf-footer-inner">
-        <p>The ChoiceMaker Korea <span aria-hidden="true">·</span> Featured Books</p>
-      </div>
-    </section>
-  </footer>;
 }
 function ShelfControls({ categories, selected, toggle }: { categories: string[]; selected: string[]; toggle: (category: string) => void }) { return <div className="filters" role="group" aria-label="카테고리 필터">{categories.filter((category) => category !== '보관').map((category) => { const active = selected.includes(category); return <button key={category} className={active ? 'active' : ''} aria-pressed={active} onClick={() => toggle(category)}>{publicCategoryLabel(category)}</button>; })}</div>; }
 function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; selected: boolean; hasActiveBooks: boolean }) {
