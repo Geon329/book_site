@@ -31,6 +31,7 @@ async function openManagement(page: import('@playwright/test').Page) {
 test.describe('book shelf motion', () => {
   test('keeps the shelf stable while filtered cards reflow', async ({ page }) => {
     await page.goto('/');
+    await expect(page).toHaveTitle('도서전 소개');
     await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', level: 1 })).toBeVisible();
     await expect(page.getByRole('img', { name: 'The ChoiceMaker Korea' })).toBeVisible();
     await expect(page.locator('.public-header-brand')).toHaveText('The ChoiceMaker Korea');
