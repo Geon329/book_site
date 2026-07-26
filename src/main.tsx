@@ -277,8 +277,7 @@ function App() {
 function PageFrame({ children }: { children: React.ReactNode }) { return <div className="page-frame">{children}</div>; }
 function PublicHeader({ heading, onOpenManagement }: { heading: React.RefObject<HTMLHeadingElement | null>; onOpenManagement: () => void }) {
   return <header className="public-header">
-    <h1 className="public-header-title" ref={heading} tabIndex={-1}>Featured Books</h1>
-    <div className="public-header-brand"><img className="public-header-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" /><p>The ChoiceMaker Korea</p></div>
+    <div className="public-header-brand"><img className="public-header-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" /><h1 ref={heading} tabIndex={-1}>The ChoiceMaker Korea</h1></div>
     <div className="public-header-actions">{adminDemoEnabled && <button className="admin-entry" onClick={onOpenManagement}>관리자 데모</button>}</div>
   </header>;
 }
@@ -294,8 +293,6 @@ function ShelfFooter() {
     <section className="shelf-footer-meta" aria-label="큐레이션 정보">
       <div className="shelf-footer-inner">
         <p>The ChoiceMaker Korea <span aria-hidden="true">·</span> Featured Books</p>
-        <p>Yes24 책 정보를 바탕으로 구성했습니다.</p>
-        <a href="#top">Back to top ↑</a>
       </div>
     </section>
   </footer>;

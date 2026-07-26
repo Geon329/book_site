@@ -34,6 +34,8 @@
   --space-3: 20px;
   --space-4: 28px;
   --timing: 160ms;
+  --shelf-motion-duration: 220ms;
+  --shelf-motion-ease: cubic-bezier(0, 0, .58, 1);
   --category-controls-justify: center;
   --category-control-gap: clamp(18px, 2.5vw, 32px);
   --category-control-height: var(--control-height);
@@ -61,9 +63,6 @@
   --public-header-brand-font-weight: 400;
   --public-header-brand-gap: 6px;
   --public-header-offset-block-start: -18px;
-  --public-header-utility-font: var(--category-control-font);
-  --public-header-utility-font-weight: var(--category-control-font-weight);
-  --public-header-title-size: 15px;
   --public-header-action-font-size: 16px;
   --public-filter-padding-block-start: clamp(32px, 4vw, 52px);
   --public-filter-padding-block-end: 22px;
@@ -115,7 +114,7 @@ input { min-height: 44px; padding: 0 10px; }
   display: grid;
   grid-template-areas:
     '. logo .'
-    'title label actions';
+    '. label actions';
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   grid-template-rows: auto auto;
   align-content: center;
@@ -126,21 +125,8 @@ input { min-height: 44px; padding: 0 10px; }
   padding: 14px 0;
 }
 .eyebrow { margin: 0 0 14px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .16em; }
-.public-header-title {
-  grid-area: title;
-  align-self: center;
-  justify-self: start;
-  margin: 0;
-  color: var(--muted);
-  font-family: var(--public-header-utility-font);
-  font-size: var(--public-header-title-size);
-  font-weight: var(--public-header-utility-font-weight);
-  letter-spacing: -.01em;
-  line-height: 1.2;
-  white-space: nowrap;
-}
 .public-header-brand { display: contents; }
-.public-header-brand p {
+.public-header-brand h1 {
   grid-area: label;
   align-self: center;
   justify-self: center;
@@ -194,7 +180,7 @@ input { min-height: 44px; padding: 0 10px; }
   font-size: var(--category-control-font-size);
   font-weight: var(--category-control-font-weight);
   letter-spacing: var(--category-control-letter-spacing);
-  transition: color var(--timing), background-color var(--timing), border-color var(--timing), box-shadow var(--timing);
+  transition: transform var(--shelf-motion-duration) var(--shelf-motion-ease), color var(--shelf-motion-duration) var(--shelf-motion-ease), background-color var(--shelf-motion-duration) var(--shelf-motion-ease), border-color var(--shelf-motion-duration) var(--shelf-motion-ease), box-shadow var(--shelf-motion-duration) var(--shelf-motion-ease);
 }
 .filters button:hover:not(.active) {
   border-color: var(--category-control-hover-border);
@@ -208,6 +194,7 @@ input { min-height: 44px; padding: 0 10px; }
   box-shadow: none;
   color: var(--category-control-active-ink);
   font-weight: var(--category-control-active-weight);
+  transform: translateY(-1px);
 }
 .grid {
   display: flex;
@@ -339,7 +326,7 @@ input { min-height: 44px; padding: 0 10px; }
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: var(--space-2) var(--space-4);
   padding-top: 24px;
   padding-bottom: 24px;
@@ -502,7 +489,7 @@ input { min-height: 44px; padding: 0 10px; }
   .page-frame { padding-right: 16px; padding-left: 16px; }
   .public-header {
     grid-template-areas:
-      'title . actions'
+      '. . actions'
       '. logo .'
       '. label .';
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -513,12 +500,11 @@ input { min-height: 44px; padding: 0 10px; }
     min-height: 0;
     padding: 12px 0 16px;
   }
-  .public-header-title { align-self: center; font-size: 12px; letter-spacing: -.01em; }
   .public-header-logo { width: 82px; }
-  .public-header-brand p { font-size: clamp(18px, 5vw, 20px); }
+  .public-header-brand h1 { font-size: clamp(18px, 5vw, 20px); }
   .public-header-actions { align-self: center; min-height: 40px; }
   .shelf-footer-inner { padding-right: 16px; padding-left: 16px; }
-  .shelf-footer-meta .shelf-footer-inner { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .shelf-footer-meta .shelf-footer-inner { align-items: center; flex-direction: column; gap: 10px; text-align: center; }
   .grid { gap: 36px 16px; padding-top: 32px; }
   .workspace-top { flex-direction: column; }
   .dialog-content { padding: 16px 22px 36px; }
