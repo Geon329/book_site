@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { FormEvent, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
@@ -38,6 +38,7 @@ type CatalogDocument = { schemaVersion: number; catalogVersion: number; categori
 type PersistedStore = Store & { sourceFingerprint?: string };
 const makeCover = (title: string, color: string) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800"><rect width="600" height="800" fill="${color}"/><rect x="38" y="38" width="524" height="724" fill="none" stroke="#ffffff" stroke-opacity=".45"/><text x="72" y="610" fill="#ffffff" font-family="Georgia,serif" font-size="36">${title}</text><text x="72" y="678" fill="#ffffff" font-family="Arial,sans-serif" font-size="16" letter-spacing="4">BOOK MARGIN</text></svg>`)}`;
 const minimumDetailTitleSize = 15;
+const seriesNavigationCooldown = 220;
 const shelfCategoryOrder = ['그림책', '픽션', '교육만화', '그래픽노블', '언어학습'];
 const normalizeCategories = (categories: unknown[]) => {
   const unique = [...new Set(categories.filter((item): item is string => typeof item === 'string' && item.trim() !== '' && item !== '보관'))];
@@ -62,7 +63,8 @@ function migrateSeedContent(book: Book, loadedVersion: number): Book {
 }
 function normalizeBook(book: Book, categories: string[]): Book {
   const safeCategories = Array.isArray(book.categories) ? [...new Set(book.categories.filter((item) => categories.includes(item)))] : [];
-  const cover = typeof book.cover === 'string' && (book.cover.startsWith('data:image/svg+xml') || book.cover.startsWith('https://image.yes24.com/goods/')) ? book.cover : makeCover(book.title || '책', '#7b6d62');
+  const hasStaticCover = typeof book.cover === 'string' && /^(?:[a-z0-9][a-z0-9_-]*\/)*[a-z0-9][a-z0-9._-]*\.(?:avif|webp|png|jpe?g)$/i.test(book.cover);
+  const cover = typeof book.cover === 'string' && (book.cover.startsWith('data:image/svg+xml') || book.cover.startsWith('https://image.yes24.com/goods/') || hasStaticCover) ? book.cover : makeCover(book.title || '책', '#7b6d62');
   const normalized: Book = { ...book, categories: safeCategories, cover };
   if (typeof book.seriesId === 'string' && book.seriesId.trim()) normalized.seriesId = book.seriesId.trim();
   else delete normalized.seriesId;
@@ -242,6 +244,13 @@ function App() {
   };
   const activeBooks = store.books.filter((book) => !book.categories.includes('보관'));
   const visible = activeBooks.filter((book) => !selected.length || book.categories.some((category) => selected.includes(category)));
+  const shelfBooks = Array.from(visible.reduce((groups, book) => {
+    const seriesId = book.seriesId?.trim();
+    const key = seriesId && Number.isFinite(book.seriesNumber) ? `series:${seriesId}` : `book:${book.id}`;
+    const current = groups.get(key);
+    if (!current || (book.seriesNumber ?? Infinity) < (current.seriesNumber ?? Infinity)) groups.set(key, book);
+    return groups;
+  }, new Map<string, Book>()).values());
   const openConfirm = (confirm: ConfirmState) => setTopLayer({ kind: 'confirm', confirm });
   const importCatalog = (file: File) => {
     void file.text().then((text) => {
@@ -270,7 +279,7 @@ function App() {
           <PageFrame>
             <PublicHeader heading={publicHeading} onOpenManagement={() => setSurface('management')} />
             <ShelfControls categories={store.categories} selected={selected} toggle={(category) => setCatalog((current) => ({ ...current, selectedCategories: current.selectedCategories.includes(category) ? current.selectedCategories.filter((item) => item !== category) : [...current.selectedCategories, category] }))} />
-            <BookGrid books={visible} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
+            <BookGrid books={shelfBooks} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
           </PageFrame>
         </main>
       ) : (
@@ -326,7 +335,7 @@ function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; 
             <BookCover book={book} />
             <span className="book-card-copy">
               <span className="category">{book.categories.filter((item) => item !== '보관').map(publicCategoryLabel).join(' · ')}</span>
-              <strong>{book.english || book.title}</strong>
+              <strong>{book.seriesId && Number.isFinite(book.seriesNumber) ? book.seriesTitle || book.english || book.title : book.english || book.title}</strong>
               <small className="book-creators">{creator} · {book.publisher}</small>
             </span>
           </motion.button>;
@@ -370,7 +379,21 @@ function BookRows({ books, archived, onOpen, onDelete }: { books: Book[]; archiv
 
 
 function BookDetailDialog({ detail, store, categories, updateBook, updateBookCategories, close, opener }: { detail: DetailState; store: Store; categories: string[]; updateBook: (book: Book) => void; updateBookCategories: (bookId: string, updateCategories: (categories: string[]) => string[]) => void; close: () => void; opener: React.MutableRefObject<HTMLElement | null> }) {
-  const root = useRef<HTMLDivElement>(null); const content = useRef<HTMLDivElement>(null); const closeButton = useRef<HTMLButtonElement>(null); const choiceCancel = useRef<HTMLButtonElement>(null); const inverse = useRef<HTMLButtonElement>(null); const restoreInverseFocus = useRef(false); const previousPhase = useRef<DetailPhase | null>(null); const choiceHadFocus = useRef(false); const titleId = useId(); const phaseTitleId = useId();
+  const root = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const choiceCancel = useRef<HTMLButtonElement>(null);
+  const inverse = useRef<HTMLButtonElement>(null);
+  const restoreInverseFocus = useRef(false);
+  const previousPhase = useRef<DetailPhase | null>(null);
+  const choiceHadFocus = useRef(false);
+  const popupSwipe = useRef<{ pointerId: number; x: number; y: number; time: number; active: boolean } | null>(null);
+  const popupWheel = useRef({ offset: 0, time: 0, releaseAt: 0 });
+  const seriesNavigationReleaseAt = useRef(0);
+  const seriesBoundaryReset = useRef<number | null>(null);
+  const contentReturnFrame = useRef<number | null>(null);
+  const titleId = useId();
+  const phaseTitleId = useId();
   const reduceMotion = useReducedMotion() ?? false;
   const [local, setLocal] = useState<DetailState>(() => {
     if (detail.identity.kind !== 'create') return detail;
@@ -378,6 +401,7 @@ function BookDetailDialog({ detail, store, categories, updateBook, updateBookCat
     return { ...detail, phase: 'edit', baseline: copy(draft), draft };
   });
   const [status, announce] = useAnnouncer();
+  const [seriesBoundaryNudge, setSeriesBoundaryNudge] = useState(0);
   const live = local.identity.kind === 'persisted' ? store.books.find((book) => book.id === local.identity.bookId) : undefined;
   const book = live ?? local.draft;
   const fallback = () => {
@@ -389,15 +413,112 @@ function BookDetailDialog({ detail, store, categories, updateBook, updateBookCat
   const dirty = Boolean(local.baseline && local.draft && JSON.stringify(local.baseline) !== JSON.stringify(local.draft));
   const seriesBooks = book && local.audience === 'public' && local.phase === 'read' && book.seriesId && Number.isFinite(book.seriesNumber) ? store.books.filter((item) => !item.categories.includes('보관') && item.seriesId === book.seriesId && Number.isFinite(item.seriesNumber)).sort((left, right) => left.seriesNumber! - right.seriesNumber!) : [];
   const seriesIndex = book ? seriesBooks.findIndex((item) => item.id === book.id) : -1;
+  const hasSeriesNavigation = local.audience === 'public' && local.phase === 'read' && seriesIndex >= 0 && seriesBooks.length > 1;
+  const nudgeSeriesBoundary = (offset: number) => {
+    if (reduceMotion) return;
+    setSeriesBoundaryNudge(offset > 0 ? -10 : 10);
+    if (seriesBoundaryReset.current !== null) window.clearTimeout(seriesBoundaryReset.current);
+    seriesBoundaryReset.current = window.setTimeout(() => {
+      setSeriesBoundaryNudge(0);
+      seriesBoundaryReset.current = null;
+    }, 110);
+  };
+  const cancelContentReturn = () => {
+    if (contentReturnFrame.current !== null) window.cancelAnimationFrame(contentReturnFrame.current);
+    contentReturnFrame.current = null;
+  };
+  const returnContentToTop = () => {
+    const node = content.current;
+    if (!node || node.scrollTop <= 0) return;
+    cancelContentReturn();
+    const from = node.scrollTop;
+    if (reduceMotion) {
+      node.scrollTop = 0;
+      return;
+    }
+    const duration = Math.min(280, Math.max(220, from * .18));
+    const start = performance.now();
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - start) / duration);
+      const eased = progress < .5 ? 4 * progress ** 3 : 1 - (-2 * progress + 2) ** 3 / 2;
+      node.scrollTop = from * (1 - eased);
+      if (progress < 1) contentReturnFrame.current = window.requestAnimationFrame(tick);
+      else contentReturnFrame.current = null;
+    };
+    contentReturnFrame.current = window.requestAnimationFrame(tick);
+  };
   const changeSeriesVolume = (offset: number) => {
+    const now = performance.now();
+    if (now < seriesNavigationReleaseAt.current) return;
     const next = seriesBooks[seriesIndex + offset];
-    if (!next) return;
-    content.current?.scrollTo({ top: 0 });
+    if (!next) {
+      nudgeSeriesBoundary(offset);
+      return;
+    }
+    seriesNavigationReleaseAt.current = now + seriesNavigationCooldown;
+    returnContentToTop();
     setLocal((current) => current.identity.kind === 'persisted' ? { ...current, identity: { kind: 'persisted', bookId: next.id } } : current);
+  };
+  const isSeriesVolumeTarget = (target: EventTarget | null) => target instanceof Element && Boolean(target.closest('.series-volume-section'));
+  const handlePopupPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    cancelContentReturn();
+    if (event.button !== 0 || isSeriesVolumeTarget(event.target)) return;
+    popupSwipe.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, time: event.timeStamp, active: false };
+  };
+  const handlePopupPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = popupSwipe.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const offsetX = event.clientX - gesture.x;
+    const offsetY = event.clientY - gesture.y;
+    if (!gesture.active) {
+      if (Math.abs(offsetX) < 12 || Math.abs(offsetX) <= Math.abs(offsetY)) return;
+      gesture.active = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    event.preventDefault();
+  };
+  const finishPopupSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = popupSwipe.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    popupSwipe.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (!gesture.active) return;
+    const offsetX = event.clientX - gesture.x;
+    const velocityX = offsetX / Math.max(1, event.timeStamp - gesture.time);
+    event.preventDefault();
+    if (Math.abs(offsetX) >= 48 || Math.abs(velocityX) >= .5) changeSeriesVolume(offsetX < 0 ? 1 : -1);
+  };
+  const cancelPopupSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (popupSwipe.current?.pointerId !== event.pointerId) return;
+    popupSwipe.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const handlePopupWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    if (isSeriesVolumeTarget(event.target)) return;
+    if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) {
+      cancelContentReturn();
+      return;
+    }
+    const offset = event.deltaX > 0 ? 1 : -1;
+    if (seriesBooks.length < 2) return;
+    event.preventDefault();
+    const now = event.timeStamp;
+    if (now - popupWheel.current.time > 120) popupWheel.current.offset = 0;
+    popupWheel.current.time = now;
+    if (now < popupWheel.current.releaseAt) return;
+    popupWheel.current.offset += event.deltaX;
+    if (Math.abs(popupWheel.current.offset) < 48) return;
+    popupWheel.current.offset = 0;
+    popupWheel.current.releaseAt = now + 260;
+    changeSeriesVolume(offset);
   };
   const requestClose = () => { if (local.audience === 'management' && dirty) setLocal({ ...local, phase: 'confirm-close' }); else close(); };
   const choicePhase = local.phase === 'resolve-dirty' || local.phase === 'confirm-lifecycle' || local.phase === 'confirm-close';
   ModalInteractionCoordinator(true, root, closeButton, requestClose, fallback);
+  useEffect(() => () => {
+    if (seriesBoundaryReset.current !== null) window.clearTimeout(seriesBoundaryReset.current);
+    cancelContentReturn();
+  }, []);
   useEffect(() => {
     const previous = previousPhase.current;
     const previouslyChoice = previous === 'resolve-dirty' || previous === 'confirm-lifecycle' || previous === 'confirm-close';
@@ -441,19 +562,27 @@ function BookDetailDialog({ detail, store, categories, updateBook, updateBookCat
   };
   const requestLifecycle = (intent: LifecycleIntent) => { if (dirty) setLocal({ ...local, phase: 'resolve-dirty', lifecycle: intent }); else setLocal({ ...local, phase: 'confirm-lifecycle', lifecycle: intent }); };
   const setDraft = (field: keyof Book, value: string | string[]) => setLocal((current) => current.draft ? { ...current, draft: { ...current.draft, [field]: value } } : current);
-  return <motion.div className="overlay" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : { duration: 0.16, ease: 'easeOut' }}><motion.div className="dialog" ref={root} role="dialog" aria-modal="true" aria-labelledby={local.phase === 'read' ? titleId : phaseTitleId} onFocusCapture={(event) => { choiceHadFocus.current = event.target instanceof HTMLElement && Boolean(event.target.closest('.dialog-choice')); }} initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: 4 }} transition={reduceMotion ? undefined : { duration: 0.2, ease: 'easeOut' }}><div className="dialog-header"><button className="close" ref={closeButton} onClick={requestClose} aria-label="상세 닫기">닫기</button></div><><div className="dialog-content" ref={content}><StatusNotice announcement={status} />{local.phase === 'resolve-dirty' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title="변경 사항 처리" text="보관 또는 복원 전에 변경 사항을 저장하거나 폐기해야 합니다." onCancel={() => setLocal({ ...local, phase: 'edit', lifecycle: null })} actions={[['저장 후 계속', () => { save(); setLocal((current) => ({ ...current, phase: 'confirm-lifecycle', lifecycle: local.lifecycle })); }], ['폐기 후 계속', () => setLocal({ ...local, phase: 'confirm-lifecycle', baseline: undefined, draft: undefined })]]} /> : local.phase === 'confirm-lifecycle' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title={local.lifecycle === 'archive' ? '책 보관' : '책 복원'} text={local.lifecycle === 'archive' ? '이 책을 보관할까요?' : '이 책을 공개 서가로 복원할까요?'} onCancel={() => setLocal({ ...local, phase: 'read', lifecycle: null })} actions={[[local.lifecycle === 'archive' ? '보관' : '복원', lifecycle]]} /> : local.phase === 'confirm-close' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title="변경 사항 폐기" text="저장하지 않은 변경 사항을 폐기하고 닫을까요?" onCancel={() => setLocal({ ...local, phase: 'edit' })} actions={[['폐기하고 닫기', close]]} /> : local.phase === 'edit' && local.draft ? <EditView titleId={phaseTitleId} book={local.draft} categories={categories} setDraft={setDraft} save={save} discard={() => local.identity.kind === 'create' ? close() : setLocal({ ...local, phase: 'read', baseline: undefined, draft: undefined })} canManageLifecycle={local.identity.kind === 'persisted'} requestLifecycle={() => requestLifecycle(archived ? 'restore' : 'archive')} lifecycleLabel={archived ? '복원' : '보관'} /> : <><ReadView book={book} titleId={titleId} seriesBooks={seriesBooks} seriesIndex={seriesIndex} onChangeSeriesVolume={changeSeriesVolume} />{local.audience === 'management' && <div className="dialog-actions"><button onClick={startEdit}>편집</button><button ref={inverse} onClick={() => requestLifecycle(archived ? 'restore' : 'archive')}>{archived ? '복원' : '보관'}</button></div>}</>}</div>{local.audience === 'public' && local.phase === 'read' && seriesIndex >= 0 && seriesBooks.length > 1 && <SeriesNavigationArrows seriesBooks={seriesBooks} seriesIndex={seriesIndex} onChangeSeriesVolume={changeSeriesVolume} />}</></motion.div></motion.div>;
+  return <motion.div className="overlay" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : { duration: 0.16, ease: 'easeOut' }}><motion.div className="dialog" ref={root} role="dialog" aria-modal="true" aria-labelledby={local.phase === 'read' ? titleId : phaseTitleId} onFocusCapture={(event) => { choiceHadFocus.current = event.target instanceof HTMLElement && Boolean(event.target.closest('.dialog-choice')); }} onPointerDown={handlePopupPointerDown} onPointerMove={handlePopupPointerMove} onPointerUp={finishPopupSwipe} onPointerCancel={cancelPopupSwipe} onWheel={handlePopupWheel} initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: 4 }} transition={reduceMotion ? undefined : { duration: 0.2, ease: 'easeOut' }}><div className="dialog-header"><button className="close" ref={closeButton} onClick={requestClose} aria-label="상세 닫기">닫기</button></div><><div className="dialog-content" ref={content}><StatusNotice announcement={status} />{local.phase === 'resolve-dirty' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title="변경 사항 처리" text="보관 또는 복원 전에 변경 사항을 저장하거나 폐기해야 합니다." onCancel={() => setLocal({ ...local, phase: 'edit', lifecycle: null })} actions={[['저장 후 계속', () => { save(); setLocal((current) => ({ ...current, phase: 'confirm-lifecycle', lifecycle: local.lifecycle })); }], ['폐기 후 계속', () => setLocal({ ...local, phase: 'confirm-lifecycle', baseline: undefined, draft: undefined })]]} /> : local.phase === 'confirm-lifecycle' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title={local.lifecycle === 'archive' ? '책 보관' : '책 복원'} text={local.lifecycle === 'archive' ? '이 책을 보관할까요?' : '이 책을 공개 서가로 복원할까요?'} onCancel={() => setLocal({ ...local, phase: 'read', lifecycle: null })} actions={[[local.lifecycle === 'archive' ? '보관' : '복원', lifecycle]]} /> : local.phase === 'confirm-close' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title="변경 사항 폐기" text="저장하지 않은 변경 사항을 폐기하고 닫을까요?" onCancel={() => setLocal({ ...local, phase: 'edit' })} actions={[['폐기하고 닫기', close]]} /> : local.phase === 'edit' && local.draft ? <EditView titleId={phaseTitleId} book={local.draft} categories={categories} setDraft={setDraft} save={save} discard={() => local.identity.kind === 'create' ? close() : setLocal({ ...local, phase: 'read', baseline: undefined, draft: undefined })} canManageLifecycle={local.identity.kind === 'persisted'} requestLifecycle={() => requestLifecycle(archived ? 'restore' : 'archive')} lifecycleLabel={archived ? '복원' : '보관'} /> : <>{hasSeriesNavigation ? <SeriesDetailTransition book={book} titleId={titleId} seriesBooks={seriesBooks} seriesIndex={seriesIndex} onChangeSeriesVolume={changeSeriesVolume} boundaryNudge={seriesBoundaryNudge} reduceMotion={reduceMotion} /> : <ReadView book={book} titleId={titleId} seriesBooks={seriesBooks} seriesIndex={seriesIndex} onChangeSeriesVolume={changeSeriesVolume} />}{local.audience === 'management' && <div className="dialog-actions"><button onClick={startEdit}>편집</button><button ref={inverse} onClick={() => requestLifecycle(archived ? 'restore' : 'archive')}>{archived ? '복원' : '보관'}</button></div>}</>}</div>{local.audience === 'public' && local.phase === 'read' && seriesIndex >= 0 && seriesBooks.length > 1 && <SeriesNavigationArrows seriesBooks={seriesBooks} seriesIndex={seriesIndex} onChangeSeriesVolume={changeSeriesVolume} />}</></motion.div></motion.div>;
+}
+function SeriesDetailTransition({ book, titleId, seriesBooks, seriesIndex, onChangeSeriesVolume, boundaryNudge, reduceMotion }: { book: Book; titleId: string; seriesBooks: Book[]; seriesIndex: number; onChangeSeriesVolume: (offset: number) => void; boundaryNudge: number; reduceMotion: boolean }) {
+  const boundaryTransition = { type: 'spring' as const, stiffness: 420, damping: 28 };
+  return <motion.div className="series-detail-stage" data-boundary-feedback={boundaryNudge ? 'active' : undefined} animate={reduceMotion ? undefined : { x: boundaryNudge }} transition={boundaryTransition}>
+    <ReadView book={book} titleId={titleId} seriesBooks={seriesBooks} seriesIndex={seriesIndex} onChangeSeriesVolume={onChangeSeriesVolume} />
+  </motion.div>;
 }
 function SeriesNavigationArrows({ seriesBooks, seriesIndex, onChangeSeriesVolume }: { seriesBooks: Book[]; seriesIndex: number; onChangeSeriesVolume: (offset: number) => void }) {
   const reduceMotion = useReducedMotion() ?? false;
   const transition = { type: 'spring' as const, duration: 0.3, bounce: 0 };
-  const button = (direction: 'previous' | 'next', offset: number) => {
+  const arrow = (direction: 'previous' | 'next', offset: number) => {
     const nextBook = seriesBooks[seriesIndex + offset];
     if (!nextBook) return null;
     const x = direction === 'previous' ? -8 : 8;
     const hoverX = direction === 'previous' ? 3 : -3;
-    return <motion.button key={direction} type="button" className="series-navigation-arrow" aria-label={`${direction === 'previous' ? '이전 권' : '다음 권'}: ${nextBook.title}`} initial={reduceMotion ? false : { opacity: 0, x, filter: 'blur(4px)' }} animate={reduceMotion ? undefined : { opacity: 1, x: 0, filter: 'blur(0px)' }} exit={reduceMotion ? undefined : { opacity: 0, x: x / 2, filter: 'blur(4px)' }} transition={transition} whileHover={reduceMotion ? undefined : { x: hoverX }} whileTap={reduceMotion ? undefined : { scale: 0.96 }} onClick={() => onChangeSeriesVolume(offset)}><SeriesNavigationIcon direction={direction} /></motion.button>;
+    return <div className={`series-navigation-arrow-slot series-navigation-arrow-slot-${direction}`}>
+      <AnimatePresence>{<motion.button key={direction} type="button" className="series-navigation-arrow" aria-label={`${direction === 'previous' ? '이전 권' : '다음 권'}: ${nextBook.title}`} initial={reduceMotion ? false : { opacity: 0, x, filter: 'blur(4px)' }} animate={reduceMotion ? undefined : { opacity: 1, x: 0, filter: 'blur(0px)' }} exit={reduceMotion ? undefined : { opacity: 0, x: x / 2, filter: 'blur(4px)' }} transition={transition} whileHover={reduceMotion ? undefined : { x: hoverX }} whileTap={reduceMotion ? undefined : { scale: 0.96 }} onPointerDown={(event) => event.stopPropagation()} onClick={() => onChangeSeriesVolume(offset)}><SeriesNavigationIcon direction={direction} /></motion.button>}</AnimatePresence>
+    </div>;
   };
-  return <div className="series-navigation-arrows"><div className="series-navigation-arrow-slot series-navigation-arrow-slot-previous"><AnimatePresence>{button('previous', -1)}</AnimatePresence></div><div className="series-navigation-arrow-slot series-navigation-arrow-slot-next"><AnimatePresence>{button('next', 1)}</AnimatePresence></div></div>;
+  return <div className="series-navigation-arrows">{arrow('previous', -1)}{arrow('next', 1)}</div>;
 }
 function SeriesNavigationIcon({ direction }: { direction: 'previous' | 'next' }) {
   const paths = direction === 'previous' ? [<path key="outer" d="M12.5303 4.53033C12.8232 4.23744 12.8232 3.76256 12.5303 3.46967C12.2374 3.17678 11.7626 3.17678 11.4697 3.46967L3.46967 11.4697C3.17678 11.7626 3.17678 12.2374 3.46967 12.5303L11.4697 20.5303C11.7626 20.8232 12.2374 20.8232 12.5303 20.5303C12.8232 20.2374 12.8232 19.7626 12.5303 19.4697L5.06066 12L12.5303 4.53033Z" />, <path key="inner" d="M20.5303 4.53033C20.8232 4.23744 20.8232 3.76256 20.5303 3.46967C20.2374 3.17678 19.7626 3.17678 19.4697 3.46967L11.4697 11.4697C11.1768 11.7626 11.1768 12.2374 11.4697 12.5303L19.4697 20.5303C19.7626 20.8232 20.2374 20.8232 20.5303 20.5303C20.8232 20.2374 20.8232 19.7626 20.5303 19.4697L13.0607 12L20.5303 4.53033Z" />] : [<path key="outer" d="M11.4697 4.53033C11.1768 4.23744 11.1768 3.76256 11.4697 3.46967C11.7626 3.17678 12.2374 3.17678 12.5303 3.46967L20.5303 11.4697C20.8232 11.7626 20.8232 12.2374 20.5303 12.5303L12.5303 20.5303C12.2374 20.8232 11.7626 20.8232 11.4697 20.5303C11.1768 20.2374 11.1768 19.7626 11.4697 19.4697L18.9393 12L11.4697 4.53033Z" />, <path key="inner" d="M3.46967 4.53033C3.17678 4.23744 3.17678 3.76256 3.46967 3.46967C3.76256 3.17678 4.23744 3.17678 4.53033 3.46967L12.5303 11.4697C12.8232 11.7626 12.8232 12.2374 12.5303 12.5303L4.53033 20.5303C4.23744 20.8232 3.76256 20.8232 3.46967 20.5303C3.17678 20.2374 3.17678 19.7626 3.46967 19.4697L10.9393 12L3.46967 4.53033Z" />];
@@ -518,14 +647,6 @@ function FittedDetailTitle({ id, title }: { id: string; title: string }) {
   return <h2 ref={heading} id={id} className="detail-title">{title}</h2>;
 }
 function ReadView({ book, titleId, seriesBooks, seriesIndex, onChangeSeriesVolume }: { book: Book; titleId: string; seriesBooks: Book[]; seriesIndex: number; onChangeSeriesVolume: (offset: number) => void }) {
-  const wheelOffset = useRef(0);
-  const wheelReset = useRef<number | null>(null);
-  const wheelRelease = useRef<number | null>(null);
-  const wheelLocked = useRef(false);
-  useEffect(() => () => {
-    if (wheelReset.current !== null) window.clearTimeout(wheelReset.current);
-    if (wheelRelease.current !== null) window.clearTimeout(wheelRelease.current);
-  }, []);
   const credits = [
     ['글', book.author],
     ['그림', book.illustrator],
@@ -542,32 +663,7 @@ function ReadView({ book, titleId, seriesBooks, seriesIndex, onChangeSeriesVolum
   const introParagraphs = book.intro ? splitIntoParagraphs(book.intro) : [];
   const introSection = book.intro && <section className="intro-section"><h3>책 소개와 줄거리</h3><div className="intro-copy">{introParagraphs.map((paragraph, index) => <p key={`${book.id}-intro-${index}`}>{paragraph}</p>)}</div><small className="detail-provenance">{provenance}</small></section>;
   const series = seriesIndex >= 0 && seriesBooks.length > 1;
-  const handleWheel = (event: React.WheelEvent<HTMLElement>) => {
-    if (!series || Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
-    event.preventDefault();
-    if (wheelLocked.current) return;
-    wheelOffset.current += event.deltaX;
-    if (Math.abs(wheelOffset.current) < 72) {
-      if (wheelReset.current !== null) window.clearTimeout(wheelReset.current);
-      wheelReset.current = window.setTimeout(() => {
-        wheelOffset.current = 0;
-        wheelReset.current = null;
-      }, 120);
-      return;
-    }
-    const offset = wheelOffset.current > 0 ? 1 : -1;
-    wheelOffset.current = 0;
-    wheelLocked.current = true;
-    wheelRelease.current = window.setTimeout(() => {
-      wheelLocked.current = false;
-      wheelRelease.current = null;
-    }, 260);
-    onChangeSeriesVolume(offset);
-  };
-  return <motion.article className="book-detail series-swipe-surface" onWheel={handleWheel} drag={series ? 'x' : false} dragDirectionLock dragConstraints={{ left: 0, right: 0 }} dragElastic={0.08} dragSnapToOrigin onDragEnd={(_, info) => {
-    if (!series || (Math.abs(info.offset.x) < 72 && Math.abs(info.velocity.x) < 600)) return;
-    onChangeSeriesVolume(info.offset.x < 0 || info.velocity.x < 0 ? 1 : -1);
-  }}>
+  return <article className="book-detail">
     <div className="detail-spread">
       <div className="detail-hero">
         <img className="detail-cover" src={book.cover} alt={`${book.title} 표지`} />
@@ -584,12 +680,161 @@ function ReadView({ book, titleId, seriesBooks, seriesIndex, onChangeSeriesVolum
       </div>
     </div>
     {publication.length > 0 && <section className="detail-fact-group detail-publication detail-publication-section"><h3>책 정보</h3><dl>{publication.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>}
-    {(book.keywords || (book.awards && book.awards !== '없음') || book.yes24Url) && <div className="detail-support">
+    {(book.keywords || (book.awards && book.awards !== '없음') || book.yes24Url || series) && <div className="detail-support">
       {book.keywords && <section><h3>키워드</h3><p>{book.keywords}</p></section>}
       {book.awards && book.awards !== '없음' && <section><h3>수상 및 추천</h3><p>{book.awards}</p></section>}
+      {series && <SeriesVolumeSlider seriesBooks={seriesBooks} seriesIndex={seriesIndex} onChangeSeriesVolume={onChangeSeriesVolume} />}
       {book.yes24Url && <section className="source-section"><a href={book.yes24Url} target="_blank" rel="noreferrer">예스24에서 상세 정보 보기 ↗</a></section>}
     </div>}
-  </motion.article>;
+  </article>;
+}
+function SeriesVolumeSlider({ seriesBooks, seriesIndex, onChangeSeriesVolume }: { seriesBooks: Book[]; seriesIndex: number; onChangeSeriesVolume: (offset: number) => void }) {
+  const track = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; scrollLeft: number; moved: boolean; points: { x: number; time: number }[] } | null>(null);
+  const moved = useRef(false);
+  const position = useRef(0);
+  const renderFrame = useRef<number | null>(null);
+  const motionFrame = useRef<number | null>(null);
+  const idleTimer = useRef<number | null>(null);
+  const reduceMotion = useReducedMotion() ?? false;
+  const maximumVelocity = 1.6;
+  const clearIdleTimer = () => {
+    if (idleTimer.current !== null) window.clearTimeout(idleTimer.current);
+    idleTimer.current = null;
+  };
+  const stopMotion = () => {
+    if (motionFrame.current !== null) window.cancelAnimationFrame(motionFrame.current);
+    motionFrame.current = null;
+  };
+  const maximum = (node: HTMLDivElement) => Math.max(0, node.scrollWidth - node.clientWidth);
+  const render = (next: number, overscroll = 0) => {
+    const node = track.current;
+    if (!node) return;
+    position.current = Math.max(0, Math.min(maximum(node), next));
+    if (renderFrame.current !== null) window.cancelAnimationFrame(renderFrame.current);
+    renderFrame.current = window.requestAnimationFrame(() => {
+      renderFrame.current = null;
+      node.scrollLeft = position.current;
+      node.style.transform = overscroll ? `translateX(${overscroll}px)` : '';
+    });
+  };
+  const nearestCardPosition = (node: HTMLDivElement) => {
+    const cards = Array.from(node.querySelectorAll<HTMLButtonElement>('.series-volume-card'));
+    return cards.reduce((nearest, card) => Math.abs(card.offsetLeft - position.current) < Math.abs(nearest - position.current) ? card.offsetLeft : nearest, cards[0]?.offsetLeft ?? 0);
+  };
+  const settle = () => {
+    const node = track.current;
+    if (!node) return;
+    stopMotion();
+    const from = position.current;
+    const target = Math.max(0, Math.min(maximum(node), nearestCardPosition(node)));
+    const start = performance.now();
+    const duration = reduceMotion ? 0 : 180;
+    const tick = (now: number) => {
+      const progress = duration ? Math.min(1, (now - start) / duration) : 1;
+      const eased = 1 - Math.pow(1 - progress, 3);
+      render(from + (target - from) * eased);
+      if (progress < 1) motionFrame.current = window.requestAnimationFrame(tick);
+      else motionFrame.current = null;
+    };
+    motionFrame.current = window.requestAnimationFrame(tick);
+  };
+  const scheduleSettle = () => {
+    clearIdleTimer();
+    idleTimer.current = window.setTimeout(settle, reduceMotion ? 0 : 120);
+  };
+  const glide = (initialVelocity: number) => {
+    const node = track.current;
+    if (!node || reduceMotion) {
+      settle();
+      return;
+    }
+    stopMotion();
+    let velocity = Math.max(-maximumVelocity, Math.min(maximumVelocity, initialVelocity));
+    let previous = performance.now();
+    const tick = (now: number) => {
+      const elapsed = Math.min(32, now - previous);
+      previous = now;
+      const next = position.current + velocity * elapsed;
+      const limit = maximum(node);
+      if (next < 0 || next > limit) {
+        const bounded = Math.max(0, Math.min(limit, next));
+        render(bounded, Math.max(-36, Math.min(36, (bounded - next) * .28)));
+        settle();
+        return;
+      }
+      render(next);
+      velocity -= Math.sign(velocity) * .003 * elapsed;
+      if (Math.abs(velocity) <= .02) {
+        settle();
+        return;
+      }
+      motionFrame.current = window.requestAnimationFrame(tick);
+    };
+    motionFrame.current = window.requestAnimationFrame(tick);
+  };
+  useEffect(() => () => {
+    if (renderFrame.current !== null) window.cancelAnimationFrame(renderFrame.current);
+    stopMotion();
+    clearIdleTimer();
+  }, []);
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    clearIdleTimer();
+    stopMotion();
+    moved.current = false;
+    position.current = event.currentTarget.scrollLeft;
+    event.currentTarget.style.transform = '';
+    drag.current = { x: event.clientX, scrollLeft: position.current, moved: false, points: [{ x: event.clientX, time: event.timeStamp }] };
+  };
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const current = drag.current;
+    if (!current) return;
+    const delta = event.clientX - current.x;
+    if (Math.abs(delta) >= 8) {
+      if (!current.moved) event.currentTarget.setPointerCapture(event.pointerId);
+      current.moved = true;
+      moved.current = true;
+    }
+    current.points.push({ x: event.clientX, time: event.timeStamp });
+    current.points = current.points.filter((point) => event.timeStamp - point.time <= 120);
+    if (!current.moved) return;
+    const next = current.scrollLeft - delta;
+    const limit = maximum(event.currentTarget);
+    const bounded = Math.max(0, Math.min(limit, next));
+    render(bounded, Math.max(-42, Math.min(42, (bounded - next) * .35)));
+  };
+  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const current = drag.current;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    drag.current = null;
+    if (!current?.moved) return;
+    const first = current.points[0];
+    const last = current.points[current.points.length - 1];
+    const velocity = first && last && last.time > first.time ? -(last.x - first.x) / (last.time - first.time) : 0;
+    if (Math.abs(velocity) > .08) glide(velocity);
+    else settle();
+  };
+  const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+    event.preventDefault();
+    clearIdleTimer();
+    stopMotion();
+    const node = event.currentTarget;
+    if (renderFrame.current === null) position.current = node.scrollLeft;
+    const next = position.current + event.deltaX;
+    const limit = maximum(node);
+    const bounded = Math.max(0, Math.min(limit, next));
+    render(bounded, Math.max(-28, Math.min(28, (bounded - next) * .2)));
+    scheduleSettle();
+  };
+  return <section className="series-volume-section" aria-label="시리즈">
+    <div className="series-volume-heading"><h3>시리즈</h3></div>
+    <div className="series-volume-track" ref={track} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onWheel={onWheel}>
+      {seriesBooks.map((volume, index) => <button key={volume.id} type="button" className="series-volume-card" aria-label={`${volume.seriesNumber}권 선택`} aria-current={index === seriesIndex ? 'true' : undefined} onClick={(event) => { event.stopPropagation(); if (!moved.current && index !== seriesIndex) onChangeSeriesVolume(index - seriesIndex); }}><img src={volume.cover} alt="" /></button>)}
+    </div>
+  </section>;
 }
 function EditView({ titleId, book, categories, setDraft, save, discard, canManageLifecycle, requestLifecycle, lifecycleLabel }: { titleId: string; book: Book; categories: string[]; setDraft: (field: keyof Book, value: string | string[]) => void; save: () => void; discard: () => void; canManageLifecycle: boolean; requestLifecycle: () => void; lifecycleLabel: string }) { const fields: (keyof Book)[] = ['title', 'english', 'author', 'illustrator', 'cover', 'intro', 'awards', 'isbn', 'specs', 'keywords']; return <form className="editor" onSubmit={(event) => { event.preventDefault(); save(); }}><h2 id={titleId}>책 편집</h2>{fields.map((field) => <label key={field}>{field}<textarea value={typeof book[field] === 'string' ? book[field] as string : ''} onChange={(event) => setDraft(field, event.target.value)} /></label>)}<fieldset><legend>카테고리</legend>{categories.filter((item) => item !== '보관').map((category) => <label key={category}><input type="checkbox" checked={book.categories.includes(category)} onChange={() => setDraft('categories', book.categories.includes(category) ? book.categories.filter((item) => item !== category) : [...book.categories, category])} />{publicCategoryLabel(category)}</label>)}</fieldset><button>저장</button><button type="button" onClick={discard}>변경 취소</button>{canManageLifecycle && <button type="button" onClick={requestLifecycle}>{lifecycleLabel}</button>}</form>; }
 function Confirm({ state, close }: { state: ConfirmState; close: () => void }) {

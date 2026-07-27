@@ -35,7 +35,7 @@ test.describe('book shelf motion', () => {
     await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', level: 1 })).toBeVisible();
     await expect(page.getByRole('img', { name: 'The ChoiceMaker Korea' })).toBeVisible();
     await expect(page.locator('.public-header-brand')).toHaveText('The ChoiceMaker Korea');
-    await expect(page.locator('.book-card')).toHaveCount(16);
+    await expect(page.locator('.book-card')).toHaveCount(14);
     await expect(page.locator('.filters button')).toHaveText(['Picture Books', 'Fictions', 'Educational Comics', 'Graphic Novels', 'Language Learning']);
     await expect(page.locator('.shelf-footer')).toHaveCount(0);
     await expect(page.locator('.book-card').first().locator('strong')).toHaveText('Hunter Girl 1: The Mirror Goddess');
@@ -355,43 +355,122 @@ test.describe('book shelf motion', () => {
     await expect(page.getByRole('dialog')).toBeHidden();
     await expect(opener).toBeFocused();
   });
-  test('navigates the explicit language-learning series with swipes and side arrows', async ({ page }) => {
+  test('groups shelf series and isolates volume slider gestures from popup navigation', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     await page.getByRole('button', { name: 'Language Learning', exact: true }).click();
-    await page.getByRole('button', { name: /Language Learning Swipe Test Series 1/ }).click();
+    const seriesCard = page.locator('.book-card').filter({ has: page.locator('strong', { hasText: 'Language Learning Swipe Test Series' }) });
+    await expect(seriesCard).toHaveCount(1);
+    await expect(seriesCard.locator('strong')).toHaveText('Language Learning Swipe Test Series');
+    await expect(seriesCard.locator('.book-cover')).toHaveAttribute(
+      'src',
+      /language-learning-swipe-test-1\.webp$/,
+    );
+    await seriesCard.click();
 
     const dialog = page.getByRole('dialog');
     await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 1 / 3');
-    const previousVolume = dialog.getByRole('button', { name: /이전 권:/ });
-    const nextVolume = dialog.getByRole('button', { name: /다음 권:/ });
-    await expect(previousVolume).toHaveCount(0);
-    await expect(nextVolume).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: '시리즈' })).toBeVisible();
+    const volumes = dialog.locator('.series-volume-card');
+    await expect(volumes).toHaveCount(3);
+    await expect(volumes.nth(0)).toHaveAttribute('aria-current', 'true');
+    await expect(volumes.nth(0).locator('span')).toHaveCount(0);
+    await expect(volumes.nth(0).locator('img')).toHaveAttribute(
+      'src',
+      /language-learning-swipe-test-1\.webp$/,
+    );
+    await expect(dialog.getByText('테스트 데이터 · 2026 ChoiceMaker 샘플 컬렉션 추천', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('언어 학습, 낱말 탐색, 종이비행기, 테스트 시리즈', { exact: true })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /시리즈 권 목록/ })).toHaveCount(0);
+    expect(await volumes.nth(0).evaluate((card) => ({
+      borderTopWidth: getComputedStyle(card).borderTopWidth,
+      indicatorColor: getComputedStyle(card, '::after').backgroundColor,
+      indicatorHeight: getComputedStyle(card, '::after').height,
+    }))).toEqual({ borderTopWidth: '0px', indicatorColor: 'rgb(111, 157, 58)', indicatorHeight: '2px' });
+    await expect(dialog.getByRole('button', { name: /이전 권:/ })).toHaveCount(0);
+    await expect(dialog.getByRole('button', { name: /다음 권:/ })).toBeVisible();
+    expect(await dialog.locator('.dialog-content').evaluate((node) => {
+      const style = getComputedStyle(node);
+      return style.overflowX === 'hidden' && style.overflowY === 'auto' && style.scrollbarWidth === 'none';
+    })).toBe(true);
+    expect(await dialog.locator('.series-detail-stage').evaluate((node) => {
+      const style = getComputedStyle(node);
+      return style.overflowX === 'hidden' && node.querySelectorAll('.series-detail-page').length === 0;
+    })).toBe(true);
 
-    const [dialogBox, nextBox] = await Promise.all([dialog.boundingBox(), nextVolume.boundingBox()]);
-    if (!dialogBox || !nextBox) throw new Error('Series navigation arrow is not visible.');
-    expect(Math.abs(nextBox.y + nextBox.height / 2 - (dialogBox.y + dialogBox.height / 2))).toBeLessThanOrEqual(1);
-    expect(nextBox.x + nextBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width);
-
-    const swipeSurface = dialog.locator('.series-swipe-surface');
-    const box = await swipeSurface.boundingBox();
-    if (!box) throw new Error('Series swipe surface is not visible.');
-    await swipeSurface.hover();
-    await page.mouse.wheel(120, 0);
-    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 2 / 3');
-    await expect(previousVolume).toBeVisible();
-    await expect(nextVolume).toBeVisible();
-
-    await page.mouse.move(box.x + box.width * 0.75, box.y + Math.min(120, box.height / 2));
+    const slider = dialog.locator('.series-volume-track');
+    await slider.scrollIntoViewIfNeeded();
+    expect(await slider.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return style.overflowX === 'auto' && style.scrollbarWidth === 'none' && style.flexWrap === 'nowrap';
+    })).toBe(true);
+    const sliderBox = await slider.boundingBox();
+    if (!sliderBox) throw new Error('Series volume slider is not visible.');
+    await page.mouse.move(sliderBox.x + sliderBox.width * 0.75, sliderBox.y + sliderBox.height / 2);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width * 0.25, box.y + Math.min(120, box.height / 2), { steps: 8 });
+    await page.mouse.move(sliderBox.x + sliderBox.width * 0.25, sliderBox.y + sliderBox.height / 2, { steps: 8 });
     await page.mouse.up();
-    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 3 / 3');
-    await expect(nextVolume).toHaveCount(0);
-
-    await previousVolume.click();
-    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 2 / 3');
-    await previousVolume.click();
+    await expect.poll(() => slider.evaluate((node) => node.scrollLeft)).toBeGreaterThan(0);
+    await expect.poll(() => slider.evaluate((node) => {
+      const maximum = node.scrollWidth - node.clientWidth;
+      return Math.min(...Array.from(node.querySelectorAll<HTMLElement>('.series-volume-card')).map((card) => (
+        Math.abs(node.scrollLeft - Math.min(maximum, card.offsetLeft))
+      )));
+    }), { timeout: 1_000 }).toBeLessThanOrEqual(1);
     await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 1 / 3');
+
+    await slider.hover();
+    await page.mouse.wheel(120, 0);
+    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 1 / 3');
+
+    await volumes.nth(1).click();
+    const nextVolume = dialog.getByRole('button', { name: /다음 권:/ });
+    await nextVolume.click();
+    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 2 / 3');
+    await expect(volumes.nth(1)).toHaveAttribute('aria-current', 'true');
+    await expect(volumes.nth(1).locator('img')).toHaveAttribute(
+      'src',
+      /language-learning-swipe-test-2\.webp$/,
+    );
+    await expect(dialog.getByText('테스트 데이터 · 2026 ChoiceMaker 샘플 컬렉션 언어 감각 부문 추천', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('언어 감각, 알파벳, 문장 연결, 숲속 탐험', { exact: true })).toBeVisible();
+    await page.waitForTimeout(250);
+
+    const popupSwipeArea = dialog.locator('.detail-heading');
+    await popupSwipeArea.scrollIntoViewIfNeeded();
+    await popupSwipeArea.hover();
+    await page.mouse.wheel(120, 0);
+    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 3 / 3');
+    await expect(dialog.getByRole('button', { name: /다음 권:/ })).toHaveCount(0);
+    const dialogContent = dialog.locator('.dialog-content');
+    await page.waitForTimeout(250);
+    await dialogContent.evaluate((node) => { node.scrollTop = node.scrollHeight; });
+    await expect.poll(() => dialogContent.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+
+    await volumes.nth(1).click();
+    await expect.poll(() => dialogContent.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+    await expect.poll(() => dialogContent.evaluate((node) => node.scrollTop)).toBe(0);
+    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 2 / 3');
+
+    await page.waitForTimeout(250);
+    await popupSwipeArea.scrollIntoViewIfNeeded();
+    await popupSwipeArea.hover();
+    await page.mouse.wheel(120, 0);
+    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 3 / 3');
+    const seriesStage = dialog.locator('.series-detail-stage');
+    await page.waitForTimeout(250);
+    await page.mouse.wheel(120, 0);
+    await expect(seriesStage).toHaveAttribute('data-boundary-feedback', 'active');
+    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 3 / 3');
+    await expect(seriesStage).not.toHaveAttribute('data-boundary-feedback', 'active');
+
+    const popupSwipeBox = await popupSwipeArea.boundingBox();
+    if (!popupSwipeBox) throw new Error('Popup swipe area is not visible.');
+    await page.mouse.move(popupSwipeBox.x + popupSwipeBox.width * 0.25, popupSwipeBox.y + popupSwipeBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(popupSwipeBox.x + popupSwipeBox.width * 0.75, popupSwipeBox.y + popupSwipeBox.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 2 / 3');
   });
   test('adds new JSON catalog books and persists them locally', async ({ page }) => {
     await page.goto('/');
@@ -417,7 +496,7 @@ test.describe('book shelf motion', () => {
     expect(exportPath).not.toBeNull();
     const exportedCatalog = JSON.parse(await readFile(exportPath!, 'utf8'));
     expect(exportedCatalog).toMatchObject({ schemaVersion: 1, catalogVersion: 4 });
-    expect(exportedCatalog.books).toHaveLength(initialBookCount + 1);
+    expect(exportedCatalog.books).toHaveLength(17);
     expect(exportedCatalog.books).toContainEqual(importedCatalog.books[0]);
     await expect.poll(() => page.evaluate(() => Object.values(localStorage).some((value) => {
       try {
@@ -480,7 +559,7 @@ test.describe('book shelf motion', () => {
     await page.reload();
 
     const publicCatalog = page.getByRole('region', { name: '책 목록' });
-    await expect(publicCatalog.getByRole('button')).toHaveCount(16);
+    await expect(publicCatalog.getByRole('button')).toHaveCount(14);
     await expect(publicCatalog.getByRole('button', { name: /Imported Test Book/ })).toHaveCount(0);
   });
 });
