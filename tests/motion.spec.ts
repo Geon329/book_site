@@ -35,12 +35,9 @@ test.describe('book shelf motion', () => {
     await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', level: 1 })).toBeVisible();
     await expect(page.getByRole('img', { name: 'The ChoiceMaker Korea' })).toBeVisible();
     await expect(page.locator('.public-header-brand')).toHaveText('The ChoiceMaker Korea');
-    await expect(page.locator('.book-card')).toHaveCount(13);
-    await expect(page.getByRole('button', { name: 'Fiction', exact: true })).toBeVisible();
+    await expect(page.locator('.book-card')).toHaveCount(16);
+    await expect(page.locator('.filters button')).toHaveText(['Picture Books', 'Fictions', 'Educational Comics', 'Graphic Novels', 'Language Learning']);
     await expect(page.locator('.shelf-footer')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Picture Books', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Educational Comics', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Graphic Novels', exact: true })).toBeVisible();
     await expect(page.locator('.book-card').first().locator('strong')).toHaveText('Hunter Girl 1: The Mirror Goddess');
     const publisherShell = await page.locator('.public-header').evaluate((header) => {
       const logo = header.querySelector<HTMLElement>('.public-header-logo')!.getBoundingClientRect();
@@ -131,6 +128,16 @@ test.describe('book shelf motion', () => {
     await page.waitForTimeout(320);
     const restored = await page.evaluate(() => document.documentElement.clientWidth);
     expect(restored).toBe(before.clientWidth);
+  });
+  test('uses public English category labels in management', async ({ page }) => {
+    await page.goto('/');
+    await openManagement(page);
+
+    const categoryManagement = page.locator('.management-section').filter({ has: page.getByRole('heading', { name: '카테고리 관리' }) });
+    await expect(categoryManagement.locator('.manage-list > li > span')).toHaveText(['Picture Books', 'Fictions', 'Educational Comics', 'Graphic Novels', 'Language Learning', 'Archived (예약됨)']);
+
+    await categoryManagement.getByRole('button', { name: '이름 변경' }).first().click();
+    await expect(categoryManagement.getByLabel('Picture Books 새 이름')).toHaveValue('Picture Books');
   });
   test('keeps the enlarged brand lockup within the mobile header', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -348,6 +355,39 @@ test.describe('book shelf motion', () => {
     await expect(page.getByRole('dialog')).toBeHidden();
     await expect(opener).toBeFocused();
   });
+  test('swipes through only the explicit language-learning test series', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Language Learning', exact: true }).click();
+    await page.getByRole('button', { name: /Language Learning Swipe Test Series 1/ }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.locator('.series-navigation p')).toHaveText('Language Learning Swipe Test Series · 1 / 3');
+    const previousVolume = dialog.getByRole('button', { name: /이전 권:/ });
+    const nextVolume = dialog.getByRole('button', { name: /다음 권:/ });
+    await expect(previousVolume).toBeDisabled();
+    await expect(nextVolume).toBeEnabled();
+
+    const swipeSurface = dialog.locator('.series-swipe-surface');
+    const box = await swipeSurface.boundingBox();
+    if (!box) throw new Error('Series swipe surface is not visible.');
+    await swipeSurface.hover();
+    await page.mouse.wheel(120, 0);
+    await expect(dialog.locator('.series-navigation p')).toHaveText('Language Learning Swipe Test Series · 2 / 3');
+    await expect(previousVolume).toBeEnabled();
+    await expect(nextVolume).toBeEnabled();
+
+    await page.mouse.move(box.x + box.width * 0.75, box.y + Math.min(120, box.height / 2));
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.25, box.y + Math.min(120, box.height / 2), { steps: 8 });
+    await page.mouse.up();
+    await expect(dialog.locator('.series-navigation p')).toHaveText('Language Learning Swipe Test Series · 3 / 3');
+    await expect(nextVolume).toBeDisabled();
+
+    await previousVolume.click();
+    await expect(dialog.locator('.series-navigation p')).toHaveText('Language Learning Swipe Test Series · 2 / 3');
+    await previousVolume.click();
+    await expect(dialog.locator('.series-navigation p')).toHaveText('Language Learning Swipe Test Series · 1 / 3');
+  });
   test('adds new JSON catalog books and persists them locally', async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
@@ -435,7 +475,7 @@ test.describe('book shelf motion', () => {
     await page.reload();
 
     const publicCatalog = page.getByRole('region', { name: '책 목록' });
-    await expect(publicCatalog.getByRole('button')).toHaveCount(13);
+    await expect(publicCatalog.getByRole('button')).toHaveCount(16);
     await expect(publicCatalog.getByRole('button', { name: /Imported Test Book/ })).toHaveCount(0);
   });
 });

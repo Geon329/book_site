@@ -356,6 +356,11 @@ input { min-height: 44px; padding: 0 10px; }
 .detail-kicker { margin: 0 0 10px; color: var(--muted); font-size: var(--detail-label-size); font-weight: var(--detail-label-weight); letter-spacing: .12em; }
 .detail-title { margin: 0; overflow-wrap: normal; white-space: nowrap; font-family: var(--brand-display); font-size: var(--detail-title-size); font-weight: var(--detail-title-weight); line-height: 1.12; letter-spacing: -.045em; text-align: left; }
 .detail-english { margin: 10px 0 0; color: var(--muted); font-size: 13px; font-style: italic; line-height: 1.45; }
+.series-swipe-surface { touch-action: pan-y; }
+.series-navigation { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin-top: 16px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.series-navigation p { margin: 0; }
+.series-navigation div { display: flex; gap: 8px; }
+.series-navigation button { min-height: 36px; padding: 5px 10px; font-size: 12px; }
 .detail-hero { grid-area: cover; display: grid; place-items: start center; padding: 0; }
 .detail-cover { display: block; width: 100%; max-width: 310px; aspect-ratio: 3 / 4; margin: 0; border: 1px solid rgb(0 0 0 / .1); border-radius: 14px; object-fit: cover; box-shadow: var(--shadow-cover); }
 .detail-reading { grid-area: reading; display: grid; max-width: 56ch; min-width: 0; margin: var(--detail-reading-gap) 0 0; gap: 0; }

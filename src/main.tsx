@@ -5,7 +5,7 @@ import './styles.css';
 import booksData from './books.json';
 import choiceMakerLogo from '../ChoiceMaker new logo.jpg';
 
-type Book = { id: string; title: string; english: string; author: string; illustrator: string; publisher?: string; categories: string[]; cover: string; intro?: string; introSource?: 'YES24_PARAPHRASE' | 'ADMIN'; awards?: string; isbn?: string; specs?: string; keywords?: string; publishedAt?: string; listPrice?: number; yes24Url?: string };
+type Book = { id: string; title: string; english: string; author: string; illustrator: string; publisher?: string; categories: string[]; cover: string; intro?: string; introSource?: 'YES24_PARAPHRASE' | 'ADMIN'; awards?: string; isbn?: string; specs?: string; keywords?: string; publishedAt?: string; listPrice?: number; yes24Url?: string; seriesId?: string; seriesTitle?: string; seriesNumber?: number };
 type Store = { books: Book[]; categories: string[]; catalogVersion: number };
 type CatalogState = { store: Store; selectedCategories: string[] };
 type DetailAudience = 'public' | 'management';
@@ -22,17 +22,31 @@ const catalogVersion = 4;
 const schemaVersion = 1;
 const adminDemoEnabled = import.meta.env.DEV;
 const publicCategoryLabels: Readonly<Record<string, string>> = {
-  픽션: 'Fiction',
+  픽션: 'Fictions',
   그림책: 'Picture Books',
   교육만화: 'Educational Comics',
   그래픽노블: 'Graphic Novels',
+  언어학습: 'Language Learning',
+  보관: 'Archived',
 };
 const publicCategoryLabel = (category: string) => publicCategoryLabels[category] ?? category;
+const categoryIdForLabel = (label: string) => {
+  const trimmed = label.trim();
+  return Object.entries(publicCategoryLabels).find(([, value]) => value === trimmed)?.[0] ?? trimmed;
+};
 type CatalogDocument = { schemaVersion: number; catalogVersion: number; categories: string[]; books: Book[] };
 type PersistedStore = Store & { sourceFingerprint?: string };
 const makeCover = (title: string, color: string) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800"><rect width="600" height="800" fill="${color}"/><rect x="38" y="38" width="524" height="724" fill="none" stroke="#ffffff" stroke-opacity=".45"/><text x="72" y="610" fill="#ffffff" font-family="Georgia,serif" font-size="36">${title}</text><text x="72" y="678" fill="#ffffff" font-family="Arial,sans-serif" font-size="16" letter-spacing="4">BOOK MARGIN</text></svg>`)}`;
 const minimumDetailTitleSize = 15;
-const normalizeCategories = (categories: unknown[]) => [...new Set([...categories.filter((item): item is string => typeof item === 'string' && item.trim() !== '' && item !== '보관'), '보관'])];
+const shelfCategoryOrder = ['그림책', '픽션', '교육만화', '그래픽노블', '언어학습'];
+const normalizeCategories = (categories: unknown[]) => {
+  const unique = [...new Set(categories.filter((item): item is string => typeof item === 'string' && item.trim() !== '' && item !== '보관'))];
+  const position = (category: string) => {
+    const index = shelfCategoryOrder.indexOf(category);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  return [...unique].sort((left, right) => position(left) - position(right)).concat('보관');
+};
 const initial: Store = {
   catalogVersion,
   categories: normalizeCategories(booksData.categories),
@@ -49,7 +63,14 @@ function migrateSeedContent(book: Book, loadedVersion: number): Book {
 function normalizeBook(book: Book, categories: string[]): Book {
   const safeCategories = Array.isArray(book.categories) ? [...new Set(book.categories.filter((item) => categories.includes(item)))] : [];
   const cover = typeof book.cover === 'string' && (book.cover.startsWith('data:image/svg+xml') || book.cover.startsWith('https://image.yes24.com/goods/')) ? book.cover : makeCover(book.title || '책', '#7b6d62');
-  return { ...book, categories: safeCategories, cover };
+  const normalized: Book = { ...book, categories: safeCategories, cover };
+  if (typeof book.seriesId === 'string' && book.seriesId.trim()) normalized.seriesId = book.seriesId.trim();
+  else delete normalized.seriesId;
+  if (typeof book.seriesTitle === 'string' && book.seriesTitle.trim()) normalized.seriesTitle = book.seriesTitle.trim();
+  else delete normalized.seriesTitle;
+  if (typeof book.seriesNumber === 'number' && Number.isFinite(book.seriesNumber)) normalized.seriesNumber = book.seriesNumber;
+  else delete normalized.seriesNumber;
+  return normalized;
 }
 function parseCatalogDocument(value: unknown): Store {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('카탈로그 JSON 형식이 올바르지 않습니다.');
@@ -91,7 +112,7 @@ function loadStore(): Store {
     if (!Array.isArray(parsed.books) || !Array.isArray(parsed.categories)) return initial;
     if (parsed.sourceFingerprint !== sourceFingerprint) return initial;
     const loadedVersion = typeof parsed.catalogVersion === 'number' ? parsed.catalogVersion : 0;
-    const categories = [...new Set([...parsed.categories.filter((item): item is string => typeof item === 'string' && item !== '보관'), '보관'])];
+    const categories = normalizeCategories(parsed.categories);
     const books = parsed.books
       .filter((item): item is Book => Boolean(item && typeof item === 'object' && typeof item.id === 'string'))
       .map((item) => normalizeBook(migrateSeedContent(item, loadedVersion), categories));
@@ -201,7 +222,8 @@ function App() {
     setTopLayer({ kind: 'detail', detail: { audience, identity, phase: 'read', lifecycle: null } });
   };
   const mutateCategory = (kind: 'rename' | 'delete', from: string, to = '') => {
-    const next = to.trim();
+    const next = categoryIdForLabel(to);
+    if (kind === 'rename' && next === from) return true;
     const valid = from !== '보관' && store.categories.includes(from) && (kind === 'delete' || (next !== '' && next !== '보관' && !store.categories.includes(next)));
     if (!valid) {
       if (kind === 'rename') announce('카테고리 이름을 사용할 수 없습니다.');
@@ -260,9 +282,9 @@ function App() {
           onNew={(event) => openDetail('management', { kind: 'create' }, event.currentTarget)}
           onImport={importCatalog}
           onExport={exportCatalog}
-          onCreateCategory={(name) => { const next = name.trim(); if (!next || next === '보관' || store.categories.includes(next)) { announce('카테고리 이름을 사용할 수 없습니다.'); return false; } setCatalog((current) => ({ ...current, store: { ...current.store, categories: [...current.store.categories, next] } })); announce('카테고리를 만들었습니다.'); return true; }}
+          onCreateCategory={(name) => { const next = categoryIdForLabel(name); if (!next || next === '보관' || store.categories.includes(next)) { announce('카테고리 이름을 사용할 수 없습니다.'); return false; } setCatalog((current) => ({ ...current, store: { ...current.store, categories: [...current.store.categories, next] } })); announce('카테고리를 만들었습니다.'); return true; }}
           onRename={(from, to) => mutateCategory('rename', from, to)}
-          onDeleteCategory={(category, event) => openConfirm({ message: `‘${category}’ 카테고리를 삭제할까요? 연결된 책에서는 제거됩니다.`, trigger: event.currentTarget, action: () => mutateCategory('delete', category) })}
+          onDeleteCategory={(category, event) => openConfirm({ message: `‘${publicCategoryLabel(category)}’ 카테고리를 삭제할까요? 연결된 책에서는 제거됩니다.`, trigger: event.currentTarget, action: () => mutateCategory('delete', category) })}
           onDeleteBook={(book, event) => openConfirm({ message: `‘${book.title}’을(를) 영구 삭제할까요?`, trigger: event.currentTarget, action: () => { setCatalog((current) => ({ ...current, store: { ...current.store, books: current.store.books.filter((item) => item.id !== book.id) } })); announce('책을 영구 삭제했습니다.'); } })}
         />
       )}
@@ -339,7 +361,7 @@ function ManagementWorkspace({ store, heading, onReturn, onOpen, onNew, onImport
       <button type="button" onClick={onExport}>카탈로그 JSON 내보내기</button>
     </ManagementSection>
     <ManagementSection title="책 관리" section="active"><button onClick={onNew}>새 책 추가</button><BookRows books={active} archived={false} onOpen={onOpen} /></ManagementSection>
-    <ManagementSection title="카테고리 관리"><form className="category-create" onSubmit={(event: FormEvent) => { event.preventDefault(); if (onCreateCategory(name)) setName(''); }}><input aria-label="새 카테고리" value={name} onChange={(event) => setName(event.target.value)} placeholder="새 카테고리" /><button>추가</button></form><ul className="manage-list">{store.categories.map((category) => <li key={category}><span>{category}{category === '보관' && ' (예약됨)'}</span>{category !== '보관' && (renaming === category ? <form className="inline-rename" onSubmit={(event) => { event.preventDefault(); if (onRename(category, rename)) setRenaming(null); }}><input aria-label={`${category} 새 이름`} value={rename} onChange={(event) => setRename(event.target.value)} /><button>저장</button><button type="button" onClick={() => setRenaming(null)}>취소</button></form> : <><button onClick={() => { setRenaming(category); setRename(category); }}>이름 변경</button><button className="danger" onClick={(event) => onDeleteCategory(category, event)}>삭제</button></>)}</li>)}</ul></ManagementSection>
+    <ManagementSection title="카테고리 관리"><form className="category-create" onSubmit={(event: FormEvent) => { event.preventDefault(); if (onCreateCategory(name)) setName(''); }}><input aria-label="새 카테고리" value={name} onChange={(event) => setName(event.target.value)} placeholder="새 카테고리" /><button>추가</button></form><ul className="manage-list">{store.categories.map((category) => <li key={category}><span>{publicCategoryLabel(category)}{category === '보관' && ' (예약됨)'}</span>{category !== '보관' && (renaming === category ? <form className="inline-rename" onSubmit={(event) => { event.preventDefault(); if (onRename(category, rename)) setRenaming(null); }}><input aria-label={`${publicCategoryLabel(category)} 새 이름`} value={rename} onChange={(event) => setRename(event.target.value)} /><button>저장</button><button type="button" onClick={() => setRenaming(null)}>취소</button></form> : <><button onClick={() => { setRenaming(category); setRename(publicCategoryLabel(category)); }}>이름 변경</button><button className="danger" onClick={(event) => onDeleteCategory(category, event)}>삭제</button></>)}</li>)}</ul></ManagementSection>
     <ManagementSection title="보관된 책" section="archived"><BookRows books={archived} archived onOpen={onOpen} onDelete={onDeleteBook} /></ManagementSection>
   </PageFrame></main>;
 }
@@ -348,7 +370,7 @@ function BookRows({ books, archived, onOpen, onDelete }: { books: Book[]; archiv
 
 
 function BookDetailDialog({ detail, store, categories, updateBook, updateBookCategories, close, opener }: { detail: DetailState; store: Store; categories: string[]; updateBook: (book: Book) => void; updateBookCategories: (bookId: string, updateCategories: (categories: string[]) => string[]) => void; close: () => void; opener: React.MutableRefObject<HTMLElement | null> }) {
-  const root = useRef<HTMLDivElement>(null); const closeButton = useRef<HTMLButtonElement>(null); const choiceCancel = useRef<HTMLButtonElement>(null); const inverse = useRef<HTMLButtonElement>(null); const restoreInverseFocus = useRef(false); const previousPhase = useRef<DetailPhase | null>(null); const choiceHadFocus = useRef(false); const titleId = useId(); const phaseTitleId = useId();
+  const root = useRef<HTMLDivElement>(null); const content = useRef<HTMLDivElement>(null); const closeButton = useRef<HTMLButtonElement>(null); const choiceCancel = useRef<HTMLButtonElement>(null); const inverse = useRef<HTMLButtonElement>(null); const restoreInverseFocus = useRef(false); const previousPhase = useRef<DetailPhase | null>(null); const choiceHadFocus = useRef(false); const titleId = useId(); const phaseTitleId = useId();
   const reduceMotion = useReducedMotion() ?? false;
   const [local, setLocal] = useState<DetailState>(() => {
     if (detail.identity.kind !== 'create') return detail;
@@ -365,6 +387,14 @@ function BookDetailDialog({ detail, store, categories, updateBook, updateBookCat
     return opener.current?.isConnected ? opener.current : (bookId ? document.querySelector<HTMLElement>(`button[data-book-id="${bookId}"]`) : null) ?? document.querySelector<HTMLElement>(`h2[data-management-section="${section}"]`) ?? document.querySelector<HTMLElement>('.workspace-top h1');
   };
   const dirty = Boolean(local.baseline && local.draft && JSON.stringify(local.baseline) !== JSON.stringify(local.draft));
+  const seriesBooks = book && local.audience === 'public' && local.phase === 'read' && book.seriesId && Number.isFinite(book.seriesNumber) ? store.books.filter((item) => !item.categories.includes('보관') && item.seriesId === book.seriesId && Number.isFinite(item.seriesNumber)).sort((left, right) => left.seriesNumber! - right.seriesNumber!) : [];
+  const seriesIndex = book ? seriesBooks.findIndex((item) => item.id === book.id) : -1;
+  const changeSeriesVolume = (offset: number) => {
+    const next = seriesBooks[seriesIndex + offset];
+    if (!next) return;
+    content.current?.scrollTo({ top: 0 });
+    setLocal((current) => current.identity.kind === 'persisted' ? { ...current, identity: { kind: 'persisted', bookId: next.id } } : current);
+  };
   const requestClose = () => { if (local.audience === 'management' && dirty) setLocal({ ...local, phase: 'confirm-close' }); else close(); };
   const choicePhase = local.phase === 'resolve-dirty' || local.phase === 'confirm-lifecycle' || local.phase === 'confirm-close';
   ModalInteractionCoordinator(true, root, closeButton, requestClose, fallback);
@@ -411,7 +441,7 @@ function BookDetailDialog({ detail, store, categories, updateBook, updateBookCat
   };
   const requestLifecycle = (intent: LifecycleIntent) => { if (dirty) setLocal({ ...local, phase: 'resolve-dirty', lifecycle: intent }); else setLocal({ ...local, phase: 'confirm-lifecycle', lifecycle: intent }); };
   const setDraft = (field: keyof Book, value: string | string[]) => setLocal((current) => current.draft ? { ...current, draft: { ...current.draft, [field]: value } } : current);
-  return <motion.div className="overlay" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : { duration: 0.16, ease: 'easeOut' }}><motion.div className="dialog" ref={root} role="dialog" aria-modal="true" aria-labelledby={local.phase === 'read' ? titleId : phaseTitleId} onFocusCapture={(event) => { choiceHadFocus.current = event.target instanceof HTMLElement && Boolean(event.target.closest('.dialog-choice')); }} initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: 4 }} transition={reduceMotion ? undefined : { duration: 0.2, ease: 'easeOut' }}><div className="dialog-header"><button className="close" ref={closeButton} onClick={requestClose} aria-label="상세 닫기">닫기</button></div><div className="dialog-content"><StatusNotice announcement={status} />{local.phase === 'resolve-dirty' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title="변경 사항 처리" text="보관 또는 복원 전에 변경 사항을 저장하거나 폐기해야 합니다." onCancel={() => setLocal({ ...local, phase: 'edit', lifecycle: null })} actions={[['저장 후 계속', () => { save(); setLocal((current) => ({ ...current, phase: 'confirm-lifecycle', lifecycle: local.lifecycle })); }], ['폐기 후 계속', () => setLocal({ ...local, phase: 'confirm-lifecycle', baseline: undefined, draft: undefined })]]} /> : local.phase === 'confirm-lifecycle' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title={local.lifecycle === 'archive' ? '책 보관' : '책 복원'} text={local.lifecycle === 'archive' ? '이 책을 보관할까요?' : '이 책을 공개 서가로 복원할까요?'} onCancel={() => setLocal({ ...local, phase: 'read', lifecycle: null })} actions={[[local.lifecycle === 'archive' ? '보관' : '복원', lifecycle]]} /> : local.phase === 'confirm-close' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title="변경 사항 폐기" text="저장하지 않은 변경 사항을 폐기하고 닫을까요?" onCancel={() => setLocal({ ...local, phase: 'edit' })} actions={[['폐기하고 닫기', close]]} /> : local.phase === 'edit' && local.draft ? <EditView titleId={phaseTitleId} book={local.draft} categories={categories} setDraft={setDraft} save={save} discard={() => local.identity.kind === 'create' ? close() : setLocal({ ...local, phase: 'read', baseline: undefined, draft: undefined })} canManageLifecycle={local.identity.kind === 'persisted'} requestLifecycle={() => requestLifecycle(archived ? 'restore' : 'archive')} lifecycleLabel={archived ? '복원' : '보관'} /> : <><ReadView book={book} titleId={titleId} />{local.audience === 'management' && <div className="dialog-actions"><button onClick={startEdit}>편집</button><button ref={inverse} onClick={() => requestLifecycle(archived ? 'restore' : 'archive')}>{archived ? '복원' : '보관'}</button></div>}</>}</div></motion.div></motion.div>;
+  return <motion.div className="overlay" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : { duration: 0.16, ease: 'easeOut' }}><motion.div className="dialog" ref={root} role="dialog" aria-modal="true" aria-labelledby={local.phase === 'read' ? titleId : phaseTitleId} onFocusCapture={(event) => { choiceHadFocus.current = event.target instanceof HTMLElement && Boolean(event.target.closest('.dialog-choice')); }} initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: 4 }} transition={reduceMotion ? undefined : { duration: 0.2, ease: 'easeOut' }}><div className="dialog-header"><button className="close" ref={closeButton} onClick={requestClose} aria-label="상세 닫기">닫기</button></div><div className="dialog-content" ref={content}><StatusNotice announcement={status} />{local.phase === 'resolve-dirty' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title="변경 사항 처리" text="보관 또는 복원 전에 변경 사항을 저장하거나 폐기해야 합니다." onCancel={() => setLocal({ ...local, phase: 'edit', lifecycle: null })} actions={[['저장 후 계속', () => { save(); setLocal((current) => ({ ...current, phase: 'confirm-lifecycle', lifecycle: local.lifecycle })); }], ['폐기 후 계속', () => setLocal({ ...local, phase: 'confirm-lifecycle', baseline: undefined, draft: undefined })]]} /> : local.phase === 'confirm-lifecycle' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title={local.lifecycle === 'archive' ? '책 보관' : '책 복원'} text={local.lifecycle === 'archive' ? '이 책을 보관할까요?' : '이 책을 공개 서가로 복원할까요?'} onCancel={() => setLocal({ ...local, phase: 'read', lifecycle: null })} actions={[[local.lifecycle === 'archive' ? '보관' : '복원', lifecycle]]} /> : local.phase === 'confirm-close' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title="변경 사항 폐기" text="저장하지 않은 변경 사항을 폐기하고 닫을까요?" onCancel={() => setLocal({ ...local, phase: 'edit' })} actions={[['폐기하고 닫기', close]]} /> : local.phase === 'edit' && local.draft ? <EditView titleId={phaseTitleId} book={local.draft} categories={categories} setDraft={setDraft} save={save} discard={() => local.identity.kind === 'create' ? close() : setLocal({ ...local, phase: 'read', baseline: undefined, draft: undefined })} canManageLifecycle={local.identity.kind === 'persisted'} requestLifecycle={() => requestLifecycle(archived ? 'restore' : 'archive')} lifecycleLabel={archived ? '복원' : '보관'} /> : <><ReadView book={book} titleId={titleId} seriesBooks={seriesBooks} seriesIndex={seriesIndex} onChangeSeriesVolume={changeSeriesVolume} />{local.audience === 'management' && <div className="dialog-actions"><button onClick={startEdit}>편집</button><button ref={inverse} onClick={() => requestLifecycle(archived ? 'restore' : 'archive')}>{archived ? '복원' : '보관'}</button></div>}</>}</div></motion.div></motion.div>;
 }
 function DialogChoice({ titleId, cancelRef, title, text, actions, onCancel }: { titleId: string; cancelRef: React.RefObject<HTMLButtonElement | null>; title: string; text: string; actions: [string, () => void][]; onCancel: () => void }) { return <section className="dialog-choice"><h2 id={titleId}>{title}</h2><p>{text}</p><button ref={cancelRef} onClick={onCancel}>취소</button>{actions.map(([label, action]) => <button key={label} className="danger" onClick={action}>{label}</button>)}</section>; }
 function splitIntoParagraphs(text: string): string[] {
@@ -471,7 +501,15 @@ function FittedDetailTitle({ id, title }: { id: string; title: string }) {
   }, [title]);
   return <h2 ref={heading} id={id} className="detail-title">{title}</h2>;
 }
-function ReadView({ book, titleId }: { book: Book; titleId: string }) {
+function ReadView({ book, titleId, seriesBooks, seriesIndex, onChangeSeriesVolume }: { book: Book; titleId: string; seriesBooks: Book[]; seriesIndex: number; onChangeSeriesVolume: (offset: number) => void }) {
+  const wheelOffset = useRef(0);
+  const wheelReset = useRef<number | null>(null);
+  const wheelRelease = useRef<number | null>(null);
+  const wheelLocked = useRef(false);
+  useEffect(() => () => {
+    if (wheelReset.current !== null) window.clearTimeout(wheelReset.current);
+    if (wheelRelease.current !== null) window.clearTimeout(wheelRelease.current);
+  }, []);
   const credits = [
     ['글', book.author],
     ['그림', book.illustrator],
@@ -483,11 +521,37 @@ function ReadView({ book, titleId }: { book: Book; titleId: string }) {
     ['ISBN', book.isbn],
     ['사양', book.specs],
   ].filter(([, value]) => Boolean(value)) as [string, string][];
-  const categories = book.categories.filter((item) => item !== '보관').join(' · ') || '분류 없음';
+  const categories = book.categories.filter((item) => item !== '보관').map(publicCategoryLabel).join(' · ') || '분류 없음';
   const provenance = book.introSource === 'YES24_PARAPHRASE' ? 'Yes24 기반으로 운영자가 재구성한 소개 문구입니다.' : book.introSource === 'ADMIN' ? '운영자가 등록한 큐레이션 소개 문구입니다.' : '소개 출처가 확인되지 않았습니다.';
   const introParagraphs = book.intro ? splitIntoParagraphs(book.intro) : [];
   const introSection = book.intro && <section className="intro-section"><h3>책 소개와 줄거리</h3><div className="intro-copy">{introParagraphs.map((paragraph, index) => <p key={`${book.id}-intro-${index}`}>{paragraph}</p>)}</div><small className="detail-provenance">{provenance}</small></section>;
-  return <article className="book-detail">
+  const series = seriesIndex >= 0 && seriesBooks.length > 1;
+  const handleWheel = (event: React.WheelEvent<HTMLElement>) => {
+    if (!series || Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+    event.preventDefault();
+    if (wheelLocked.current) return;
+    wheelOffset.current += event.deltaX;
+    if (Math.abs(wheelOffset.current) < 72) {
+      if (wheelReset.current !== null) window.clearTimeout(wheelReset.current);
+      wheelReset.current = window.setTimeout(() => {
+        wheelOffset.current = 0;
+        wheelReset.current = null;
+      }, 120);
+      return;
+    }
+    const offset = wheelOffset.current > 0 ? 1 : -1;
+    wheelOffset.current = 0;
+    wheelLocked.current = true;
+    wheelRelease.current = window.setTimeout(() => {
+      wheelLocked.current = false;
+      wheelRelease.current = null;
+    }, 260);
+    onChangeSeriesVolume(offset);
+  };
+  return <motion.article className="book-detail series-swipe-surface" onWheel={handleWheel} drag={series ? 'x' : false} dragDirectionLock dragConstraints={{ left: 0, right: 0 }} dragElastic={0.08} dragSnapToOrigin onDragEnd={(_, info) => {
+    if (!series || (Math.abs(info.offset.x) < 72 && Math.abs(info.velocity.x) < 600)) return;
+    onChangeSeriesVolume(info.offset.x < 0 || info.velocity.x < 0 ? 1 : -1);
+  }}>
     <div className="detail-spread">
       <div className="detail-hero">
         <img className="detail-cover" src={book.cover} alt={`${book.title} 표지`} />
@@ -496,6 +560,7 @@ function ReadView({ book, titleId }: { book: Book; titleId: string }) {
         <p className="detail-kicker">{categories}</p>
         <FittedDetailTitle id={titleId} title={book.title} />
         {book.english && <p className="detail-english">{book.english}</p>}
+        {series && <div className="series-navigation"><p>{book.seriesTitle || book.seriesId} · {book.seriesNumber} / {seriesBooks.length}</p><div><button type="button" onClick={() => onChangeSeriesVolume(-1)} disabled={seriesIndex === 0} aria-label={`이전 권: ${seriesBooks[seriesIndex - 1]?.title ?? ''}`}>이전 권</button><button type="button" onClick={() => onChangeSeriesVolume(1)} disabled={seriesIndex === seriesBooks.length - 1} aria-label={`다음 권: ${seriesBooks[seriesIndex + 1]?.title ?? ''}`}>다음 권</button></div></div>}
       </header>
       <div className="detail-reading">
         {credits.length > 0 && <section className="detail-fact-group detail-credits"><h3>작가</h3><dl>{credits.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>}
@@ -508,9 +573,9 @@ function ReadView({ book, titleId }: { book: Book; titleId: string }) {
       {book.awards && book.awards !== '없음' && <section><h3>수상 및 추천</h3><p>{book.awards}</p></section>}
       {book.yes24Url && <section className="source-section"><a href={book.yes24Url} target="_blank" rel="noreferrer">예스24에서 상세 정보 보기 ↗</a></section>}
     </div>}
-  </article>;
+  </motion.article>;
 }
-function EditView({ titleId, book, categories, setDraft, save, discard, canManageLifecycle, requestLifecycle, lifecycleLabel }: { titleId: string; book: Book; categories: string[]; setDraft: (field: keyof Book, value: string | string[]) => void; save: () => void; discard: () => void; canManageLifecycle: boolean; requestLifecycle: () => void; lifecycleLabel: string }) { const fields: (keyof Book)[] = ['title', 'english', 'author', 'illustrator', 'cover', 'intro', 'awards', 'isbn', 'specs', 'keywords']; return <form className="editor" onSubmit={(event) => { event.preventDefault(); save(); }}><h2 id={titleId}>책 편집</h2>{fields.map((field) => <label key={field}>{field}<textarea value={typeof book[field] === 'string' ? book[field] as string : ''} onChange={(event) => setDraft(field, event.target.value)} /></label>)}<fieldset><legend>카테고리</legend>{categories.filter((item) => item !== '보관').map((category) => <label key={category}><input type="checkbox" checked={book.categories.includes(category)} onChange={() => setDraft('categories', book.categories.includes(category) ? book.categories.filter((item) => item !== category) : [...book.categories, category])} />{category}</label>)}</fieldset><button>저장</button><button type="button" onClick={discard}>변경 취소</button>{canManageLifecycle && <button type="button" onClick={requestLifecycle}>{lifecycleLabel}</button>}</form>; }
+function EditView({ titleId, book, categories, setDraft, save, discard, canManageLifecycle, requestLifecycle, lifecycleLabel }: { titleId: string; book: Book; categories: string[]; setDraft: (field: keyof Book, value: string | string[]) => void; save: () => void; discard: () => void; canManageLifecycle: boolean; requestLifecycle: () => void; lifecycleLabel: string }) { const fields: (keyof Book)[] = ['title', 'english', 'author', 'illustrator', 'cover', 'intro', 'awards', 'isbn', 'specs', 'keywords']; return <form className="editor" onSubmit={(event) => { event.preventDefault(); save(); }}><h2 id={titleId}>책 편집</h2>{fields.map((field) => <label key={field}>{field}<textarea value={typeof book[field] === 'string' ? book[field] as string : ''} onChange={(event) => setDraft(field, event.target.value)} /></label>)}<fieldset><legend>카테고리</legend>{categories.filter((item) => item !== '보관').map((category) => <label key={category}><input type="checkbox" checked={book.categories.includes(category)} onChange={() => setDraft('categories', book.categories.includes(category) ? book.categories.filter((item) => item !== category) : [...book.categories, category])} />{publicCategoryLabel(category)}</label>)}</fieldset><button>저장</button><button type="button" onClick={discard}>변경 취소</button>{canManageLifecycle && <button type="button" onClick={requestLifecycle}>{lifecycleLabel}</button>}</form>; }
 function Confirm({ state, close }: { state: ConfirmState; close: () => void }) {
   const root = useRef<HTMLDivElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "catalogVersion": 4,
-  "categories": ["픽션", "그림책", "교육만화", "그래픽노블", "보관"],
+  "categories": ["그림책", "픽션", "교육만화", "그래픽노블", "언어학습", "보관"],
   "books": [
   {
     "id": "huntergirl-1",
@@ -249,6 +249,51 @@
     "publishedAt": "2026-02-10",
     "listPrice": 17000,
     "yes24Url": "https://www.yes24.com/product/goods/176325842"
+  },
+  {
+    "id": "language-learning-swipe-test-1",
+    "title": "Language Learning Swipe Test Series 1",
+    "english": "Language Learning Swipe Test Series 1",
+    "author": "테스트 편집부",
+    "illustrator": "없음",
+    "publisher": "ChoiceMaker Test",
+    "categories": ["언어학습"],
+    "cover": "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 800'%3E%3Crect width='600' height='800' fill='%235b7c99'/%3E%3C/svg%3E",
+    "intro": "스와이프 시리즈 탐색을 확인하기 위한 테스트 1권입니다.",
+    "introSource": "ADMIN",
+    "seriesId": "language-learning-swipe-test",
+    "seriesTitle": "Language Learning Swipe Test Series",
+    "seriesNumber": 1
+  },
+  {
+    "id": "language-learning-swipe-test-2",
+    "title": "Language Learning Swipe Test Series 2",
+    "english": "Language Learning Swipe Test Series 2",
+    "author": "테스트 편집부",
+    "illustrator": "없음",
+    "publisher": "ChoiceMaker Test",
+    "categories": ["언어학습"],
+    "cover": "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 800'%3E%3Crect width='600' height='800' fill='%237f9f7f'/%3E%3C/svg%3E",
+    "intro": "스와이프 시리즈 탐색을 확인하기 위한 테스트 2권입니다.",
+    "introSource": "ADMIN",
+    "seriesId": "language-learning-swipe-test",
+    "seriesTitle": "Language Learning Swipe Test Series",
+    "seriesNumber": 2
+  },
+  {
+    "id": "language-learning-swipe-test-3",
+    "title": "Language Learning Swipe Test Series 3",
+    "english": "Language Learning Swipe Test Series 3",
+    "author": "테스트 편집부",
+    "illustrator": "없음",
+    "publisher": "ChoiceMaker Test",
+    "categories": ["언어학습"],
+    "cover": "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 800'%3E%3Crect width='600' height='800' fill='%23966b6b'/%3E%3C/svg%3E",
+    "intro": "스와이프 시리즈 탐색을 확인하기 위한 테스트 3권입니다.",
+    "introSource": "ADMIN",
+    "seriesId": "language-learning-swipe-test",
+    "seriesTitle": "Language Learning Swipe Test Series",
+    "seriesNumber": 3
   }
   ]
 }
