@@ -355,38 +355,43 @@ test.describe('book shelf motion', () => {
     await expect(page.getByRole('dialog')).toBeHidden();
     await expect(opener).toBeFocused();
   });
-  test('swipes through only the explicit language-learning test series', async ({ page }) => {
+  test('navigates the explicit language-learning series with swipes and side arrows', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Language Learning', exact: true }).click();
     await page.getByRole('button', { name: /Language Learning Swipe Test Series 1/ }).click();
 
     const dialog = page.getByRole('dialog');
-    await expect(dialog.locator('.series-navigation p')).toHaveText('Language Learning Swipe Test Series · 1 / 3');
+    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 1 / 3');
     const previousVolume = dialog.getByRole('button', { name: /이전 권:/ });
     const nextVolume = dialog.getByRole('button', { name: /다음 권:/ });
-    await expect(previousVolume).toBeDisabled();
-    await expect(nextVolume).toBeEnabled();
+    await expect(previousVolume).toHaveCount(0);
+    await expect(nextVolume).toBeVisible();
+
+    const [dialogBox, nextBox] = await Promise.all([dialog.boundingBox(), nextVolume.boundingBox()]);
+    if (!dialogBox || !nextBox) throw new Error('Series navigation arrow is not visible.');
+    expect(Math.abs(nextBox.y + nextBox.height / 2 - (dialogBox.y + dialogBox.height / 2))).toBeLessThanOrEqual(1);
+    expect(nextBox.x + nextBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width);
 
     const swipeSurface = dialog.locator('.series-swipe-surface');
     const box = await swipeSurface.boundingBox();
     if (!box) throw new Error('Series swipe surface is not visible.');
     await swipeSurface.hover();
     await page.mouse.wheel(120, 0);
-    await expect(dialog.locator('.series-navigation p')).toHaveText('Language Learning Swipe Test Series · 2 / 3');
-    await expect(previousVolume).toBeEnabled();
-    await expect(nextVolume).toBeEnabled();
+    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 2 / 3');
+    await expect(previousVolume).toBeVisible();
+    await expect(nextVolume).toBeVisible();
 
     await page.mouse.move(box.x + box.width * 0.75, box.y + Math.min(120, box.height / 2));
     await page.mouse.down();
     await page.mouse.move(box.x + box.width * 0.25, box.y + Math.min(120, box.height / 2), { steps: 8 });
     await page.mouse.up();
-    await expect(dialog.locator('.series-navigation p')).toHaveText('Language Learning Swipe Test Series · 3 / 3');
-    await expect(nextVolume).toBeDisabled();
+    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 3 / 3');
+    await expect(nextVolume).toHaveCount(0);
 
     await previousVolume.click();
-    await expect(dialog.locator('.series-navigation p')).toHaveText('Language Learning Swipe Test Series · 2 / 3');
+    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 2 / 3');
     await previousVolume.click();
-    await expect(dialog.locator('.series-navigation p')).toHaveText('Language Learning Swipe Test Series · 1 / 3');
+    await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 1 / 3');
   });
   test('adds new JSON catalog books and persists them locally', async ({ page }) => {
     await page.goto('/');
