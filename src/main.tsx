@@ -3,9 +3,13 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import booksData from './books.json';
-import choiceMakerLogo from '../ChoiceMaker new logo.jpg';
+import choiceMakerLogo from '../logo_02.svg';
+import editorialHero from '../item_01.png';
 
-type Book = { id: string; title: string; english: string; author: string; illustrator: string; publisher?: string; categories: string[]; cover: string; intro?: string; introSource?: 'YES24_PARAPHRASE' | 'ADMIN'; awards?: string; isbn?: string; specs?: string; keywords?: string; publishedAt?: string; listPrice?: number; yes24Url?: string; seriesId?: string; seriesTitle?: string; seriesNumber?: number };
+type CoverFit = 'auto' | 'cover' | 'contain';
+type CoverStatus = 'loading' | 'safe' | 'review' | 'exception' | 'unavailable';
+type CoverAnalysis = { status: CoverStatus; cropFraction?: number };
+type Book = { id: string; title: string; english: string; author: string; illustrator: string; publisher?: string; categories: string[]; cover: string; coverFit?: CoverFit; intro?: string; introSource?: 'YES24_PARAPHRASE' | 'ADMIN'; awards?: string; isbn?: string; specs?: string; keywords?: string; publishedAt?: string; listPrice?: number; yes24Url?: string; seriesId?: string; seriesTitle?: string; seriesNumber?: number };
 type Store = { books: Book[]; categories: string[]; catalogVersion: number };
 type CatalogState = { store: Store; selectedCategories: string[] };
 type DetailAudience = 'public' | 'management';
@@ -40,6 +44,43 @@ const makeCover = (title: string, color: string) => `data:image/svg+xml;charset=
 const minimumDetailTitleSize = 15;
 const seriesNavigationCooldown = 220;
 const shelfCategoryOrder = ['그림책', '픽션', '교육만화', '그래픽노블', '언어학습'];
+const publicCoverFrameRatio = 274 / 400;
+const coverAnalyses = new Map<string, CoverAnalysis>();
+const normalizeCoverFit = (value: unknown): CoverFit => value === 'cover' || value === 'contain' ? value : 'auto';
+const classifyCover = (width: number, height: number): CoverAnalysis => {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return { status: 'unavailable' };
+  const sourceRatio = width / height;
+  const cropFraction = 1 - Math.min(sourceRatio / publicCoverFrameRatio, publicCoverFrameRatio / sourceRatio);
+  return { status: cropFraction <= .08 ? 'safe' : cropFraction <= .18 ? 'review' : 'exception', cropFraction };
+};
+const resolvedCoverFit = (book: Book): 'cover' | 'contain' => {
+  const preference = normalizeCoverFit(book.coverFit);
+  return preference === 'auto' ? 'cover' : preference;
+};
+function useCoverAnalysis(cover: string): CoverAnalysis {
+  const [analysis, setAnalysis] = useState<CoverAnalysis>(() => coverAnalyses.get(cover) ?? { status: 'loading' });
+  useEffect(() => {
+    const cached = coverAnalyses.get(cover);
+    if (cached) {
+      setAnalysis(cached);
+      return;
+    }
+    setAnalysis({ status: 'loading' });
+    const image = new Image();
+    let active = true;
+    const finish = (next: CoverAnalysis) => {
+      if (!active) return;
+      coverAnalyses.set(cover, next);
+      setAnalysis(next);
+    };
+    image.onload = () => finish(classifyCover(image.naturalWidth, image.naturalHeight));
+    image.onerror = () => finish({ status: 'unavailable' });
+    image.src = cover;
+    if (image.complete) finish(image.naturalWidth ? classifyCover(image.naturalWidth, image.naturalHeight) : { status: 'unavailable' });
+    return () => { active = false; };
+  }, [cover]);
+  return analysis;
+}
 const normalizeCategories = (categories: unknown[]) => {
   const unique = [...new Set(categories.filter((item): item is string => typeof item === 'string' && item.trim() !== '' && item !== '보관'))];
   const position = (category: string) => {
@@ -66,6 +107,8 @@ function normalizeBook(book: Book, categories: string[]): Book {
   const hasStaticCover = typeof book.cover === 'string' && /^(?:[a-z0-9][a-z0-9_-]*\/)*[a-z0-9][a-z0-9._-]*\.(?:avif|webp|png|jpe?g)$/i.test(book.cover);
   const cover = typeof book.cover === 'string' && (book.cover.startsWith('data:image/svg+xml') || book.cover.startsWith('https://image.yes24.com/goods/') || hasStaticCover) ? book.cover : makeCover(book.title || '책', '#7b6d62');
   const normalized: Book = { ...book, categories: safeCategories, cover };
+  if (normalizeCoverFit(book.coverFit) === 'auto') delete normalized.coverFit;
+  else normalized.coverFit = normalizeCoverFit(book.coverFit);
   if (typeof book.seriesId === 'string' && book.seriesId.trim()) normalized.seriesId = book.seriesId.trim();
   else delete normalized.seriesId;
   if (typeof book.seriesTitle === 'string' && book.seriesTitle.trim()) normalized.seriesTitle = book.seriesTitle.trim();
@@ -277,9 +320,16 @@ function App() {
       {surface === 'public' ? (
         <main id="top" className="public-shelf">
           <PageFrame>
-            <PublicHeader heading={publicHeading} onOpenManagement={() => setSurface('management')} />
-            <ShelfControls categories={store.categories} selected={selected} toggle={(category) => setCatalog((current) => ({ ...current, selectedCategories: current.selectedCategories.includes(category) ? current.selectedCategories.filter((item) => item !== category) : [...current.selectedCategories, category] }))} />
-            <BookGrid books={shelfBooks} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
+            <PublicHeader heading={publicHeading} categories={store.categories} selected={selected} toggle={(category) => setCatalog((current) => ({ ...current, selectedCategories: current.selectedCategories.includes(category) ? current.selectedCategories.filter((item) => item !== category) : [...current.selectedCategories, category] }))} onOpenManagement={() => setSurface('management')} />
+            <PublicHero />
+            <section className="public-featured" id="featured-titles" aria-labelledby="featured-title-heading">
+              <div className="public-featured-heading">
+                <h2 id="featured-title-heading">Featured Titles</h2>
+                <span className="public-featured-divider" aria-hidden="true" />
+                <a href="#featured-titles">View all titles <span aria-hidden="true">→</span></a>
+              </div>
+              <BookGrid books={shelfBooks} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
+            </section>
           </PageFrame>
         </main>
       ) : (
@@ -305,11 +355,24 @@ function App() {
   </>;
 }
 function PageFrame({ children }: { children: React.ReactNode }) { return <div className="page-frame">{children}</div>; }
-function PublicHeader({ heading, onOpenManagement }: { heading: React.RefObject<HTMLHeadingElement | null>; onOpenManagement: () => void }) {
+function PublicHeader({ heading, categories, selected, toggle, onOpenManagement }: { heading: React.RefObject<HTMLHeadingElement | null>; categories: string[]; selected: string[]; toggle: (category: string) => void; onOpenManagement: () => void }) {
   return <header className="public-header">
-    <div className="public-header-brand"><img className="public-header-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" /><h1 ref={heading} tabIndex={-1}>The ChoiceMaker Korea</h1></div>
-    <div className="public-header-actions">{adminDemoEnabled && <button className="admin-entry" onClick={onOpenManagement}>관리자 데모</button>}</div>
+    <div className="public-header-primary">
+      <div className="public-header-brand"><img className="public-header-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" /><h1 ref={heading} tabIndex={-1}>The ChoiceMaker Korea</h1></div>
+      <div className="public-header-actions">{adminDemoEnabled && <button className="admin-entry" onClick={onOpenManagement}><svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="8" r="3" /><path d="M5.5 19c.8-3.2 3-4.8 6.5-4.8s5.7 1.6 6.5 4.8" /></svg>관리자 데모</button>}</div>
+    </div>
+    <nav className="public-category-navigation" aria-label="도서 카테고리"><ShelfControls categories={categories} selected={selected} toggle={toggle} /></nav>
   </header>;
+}
+function PublicHero() {
+  return <section className="public-hero" aria-labelledby="public-hero-heading">
+    <div className="public-hero-copy">
+      <h2 id="public-hero-heading">Curated Stories.<br />Worldwide Impact.</h2>
+      <p>The ChoiceMaker Korea는<br />차별화된 콘텐츠를 발굴하고 전 세계 독자와 연결합니다.</p>
+      <a className="public-hero-cta" href="#featured-titles">Explore Our Collection <span aria-hidden="true">→</span></a>
+    </div>
+    <img className="public-hero-image" src={editorialHero} alt="The ChoiceMaker Korea의 어린이 책 컬렉션" />
+  </section>;
 }
 function ShelfControls({ categories, selected, toggle }: { categories: string[]; selected: string[]; toggle: (category: string) => void }) { return <div className="filters" role="group" aria-label="카테고리 필터">{categories.filter((category) => category !== '보관').map((category) => { const active = selected.includes(category); return <button key={category} className={active ? 'active' : ''} aria-pressed={active} onClick={() => toggle(category)}>{publicCategoryLabel(category)}</button>; })}</div>; }
 function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; selected: boolean; hasActiveBooks: boolean }) {
@@ -324,6 +387,7 @@ function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; 
           return <motion.button
             key={book.id}
             className="book-card"
+            data-book-id={book.id}
             layout={!reduceMotion ? 'position' : false}
             initial={reduceMotion ? false : { opacity: 0, y: 10 }}
             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -348,16 +412,18 @@ function BookCover({ book }: { book: Book }) {
   const reduceMotion = useReducedMotion() ?? false;
   const image = useRef<HTMLImageElement>(null);
   const [loaded, setLoaded] = useState(false);
+  useCoverAnalysis(book.cover);
   useEffect(() => {
     setLoaded(Boolean(image.current?.complete));
   }, [book.cover]);
-  return <span className="cover-frame"><motion.img ref={image} className="book-cover" src={book.cover} alt="" loading="lazy" onLoad={() => setLoaded(true)} onError={() => setLoaded(true)} initial={false} animate={{ opacity: reduceMotion || loaded ? 1 : 0 }} transition={reduceMotion ? { duration: 0 } : { duration: 0.18, ease: 'easeOut' }} /></span>;
+  return <span className="cover-frame"><motion.img ref={image} className="book-cover" src={book.cover} alt="" loading="lazy" style={{ objectFit: resolvedCoverFit(book) }} onLoad={() => setLoaded(true)} onError={() => setLoaded(true)} initial={false} animate={{ opacity: reduceMotion || loaded ? 1 : 0 }} transition={reduceMotion ? { duration: 0 } : { duration: 0.18, ease: 'easeOut' }} /></span>;
 }
 
 function ManagementWorkspace({ store, heading, onReturn, onOpen, onNew, onImport, onExport, onCreateCategory, onRename, onDeleteCategory, onDeleteBook }: { store: Store; heading: React.RefObject<HTMLHeadingElement | null>; onReturn: () => void; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; onNew: (event: React.MouseEvent<HTMLButtonElement>) => void; onImport: (file: File) => void; onExport: () => void; onCreateCategory: (name: string) => boolean; onRename: (from: string, to: string) => boolean; onDeleteCategory: (category: string, event: React.MouseEvent<HTMLButtonElement>) => void; onDeleteBook: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void }) {
   const [name, setName] = useState('');
   const [renaming, setRenaming] = useState<string | null>(null);
   const [rename, setRename] = useState('');
+  const [coverFilter, setCoverFilter] = useState<'all' | 'review' | 'exception'>('all');
   const importInput = useRef<HTMLInputElement>(null);
   const active = store.books.filter((book) => !book.categories.includes('보관'));
   const archived = store.books.filter((book) => book.categories.includes('보관'));
@@ -369,13 +435,24 @@ function ManagementWorkspace({ store, heading, onReturn, onOpen, onNew, onImport
       <button type="button" onClick={() => importInput.current?.click()}>카탈로그 JSON 가져오기</button>
       <button type="button" onClick={onExport}>카탈로그 JSON 내보내기</button>
     </ManagementSection>
-    <ManagementSection title="책 관리" section="active"><button onClick={onNew}>새 책 추가</button><BookRows books={active} archived={false} onOpen={onOpen} /></ManagementSection>
+    <ManagementSection title="책 관리" section="active"><button onClick={onNew}>새 책 추가</button><fieldset className="cover-status-filter"><legend>자동 표지 상태 필터</legend>{([['all', '전체'], ['review', '검토 필요'], ['exception', '예외']] as const).map(([value, label]) => <label key={value}><input type="radio" name="cover-status-filter" value={value} checked={coverFilter === value} onChange={() => setCoverFilter(value)} />{label}</label>)}</fieldset><BookRows books={active} archived={false} coverFilter={coverFilter} onOpen={onOpen} /></ManagementSection>
     <ManagementSection title="카테고리 관리"><form className="category-create" onSubmit={(event: FormEvent) => { event.preventDefault(); if (onCreateCategory(name)) setName(''); }}><input aria-label="새 카테고리" value={name} onChange={(event) => setName(event.target.value)} placeholder="새 카테고리" /><button>추가</button></form><ul className="manage-list">{store.categories.map((category) => <li key={category}><span>{publicCategoryLabel(category)}{category === '보관' && ' (예약됨)'}</span>{category !== '보관' && (renaming === category ? <form className="inline-rename" onSubmit={(event) => { event.preventDefault(); if (onRename(category, rename)) setRenaming(null); }}><input aria-label={`${publicCategoryLabel(category)} 새 이름`} value={rename} onChange={(event) => setRename(event.target.value)} /><button>저장</button><button type="button" onClick={() => setRenaming(null)}>취소</button></form> : <><button onClick={() => { setRenaming(category); setRename(publicCategoryLabel(category)); }}>이름 변경</button><button className="danger" onClick={(event) => onDeleteCategory(category, event)}>삭제</button></>)}</li>)}</ul></ManagementSection>
     <ManagementSection title="보관된 책" section="archived"><BookRows books={archived} archived onOpen={onOpen} onDelete={onDeleteBook} /></ManagementSection>
   </PageFrame></main>;
 }
 function ManagementSection({ title, section, children }: { title: string; section?: 'active' | 'archived'; children: React.ReactNode }) { return <section className="management-section"><h2 data-management-section={section} tabIndex={-1}>{title}</h2>{children}</section>; }
-function BookRows({ books, archived, onOpen, onDelete }: { books: Book[]; archived: boolean; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; onDelete?: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void }) { return <ul className="manage-list">{books.map((book) => <li key={book.id}><span>{book.title} {archived && <b>보관됨</b>}</span><button data-book-id={book.id} onClick={(event) => onOpen(book, event)}>{archived ? '보기 및 복원' : '편집'}</button>{archived ? <button className="danger" onClick={(event) => onDelete?.(book, event)}>영구 삭제</button> : <button disabled title="먼저 보관해야 삭제할 수 있습니다.">영구 삭제</button>}</li>)}</ul>; }
+function CoverStatus({ book, analysis }: { book: Book; analysis: CoverAnalysis }) {
+  const fit = resolvedCoverFit(book);
+  const label = analysis.status === 'loading' ? '분석 중' : analysis.status === 'unavailable' ? '이미지 분석 불가' : analysis.status === 'safe' ? '안전' : analysis.status === 'review' ? '검토 필요' : '예외';
+  return <span className={`cover-status cover-status-${analysis.status}`}><b>{label}</b>{analysis.cropFraction !== undefined && <> · 예상 잘림 {Math.round(analysis.cropFraction * 100)}%</>}<small>{normalizeCoverFit(book.coverFit) === 'auto' ? `자동 표시: ${fit}` : `표시: ${fit}`}</small></span>;
+}
+function CoverRow({ book, archived, coverFilter, onOpen, onDelete }: { book: Book; archived: boolean; coverFilter: 'all' | 'review' | 'exception'; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; onDelete?: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void }) {
+  const analysis = useCoverAnalysis(book.cover);
+  const matches = coverFilter === 'all' || (coverFilter === 'review' ? analysis.status === 'review' || analysis.status === 'exception' || analysis.status === 'unavailable' : analysis.status === 'exception');
+  if (!matches) return null;
+  return <li><span>{book.title} {archived && <b>보관됨</b>}<CoverStatus book={book} analysis={analysis} /></span><button data-book-id={book.id} onClick={(event) => onOpen(book, event)}>{archived ? '보기 및 복원' : '편집'}</button>{archived ? <button className="danger" onClick={(event) => onDelete?.(book, event)}>영구 삭제</button> : <button disabled title="먼저 보관해야 삭제할 수 있습니다.">영구 삭제</button>}</li>;
+}
+function BookRows({ books, archived, coverFilter = 'all', onOpen, onDelete }: { books: Book[]; archived: boolean; coverFilter?: 'all' | 'review' | 'exception'; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; onDelete?: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void }) { return <ul className="manage-list">{books.map((book) => <CoverRow key={book.id} book={book} archived={archived} coverFilter={coverFilter} onOpen={onOpen} onDelete={onDelete} />)}</ul>; }
 
 
 function BookDetailDialog({ detail, store, categories, updateBook, updateBookCategories, close, opener }: { detail: DetailState; store: Store; categories: string[]; updateBook: (book: Book) => void; updateBookCategories: (bookId: string, updateCategories: (categories: string[]) => string[]) => void; close: () => void; opener: React.MutableRefObject<HTMLElement | null> }) {
@@ -836,7 +913,7 @@ function SeriesVolumeSlider({ seriesBooks, seriesIndex, onChangeSeriesVolume }: 
     </div>
   </section>;
 }
-function EditView({ titleId, book, categories, setDraft, save, discard, canManageLifecycle, requestLifecycle, lifecycleLabel }: { titleId: string; book: Book; categories: string[]; setDraft: (field: keyof Book, value: string | string[]) => void; save: () => void; discard: () => void; canManageLifecycle: boolean; requestLifecycle: () => void; lifecycleLabel: string }) { const fields: (keyof Book)[] = ['title', 'english', 'author', 'illustrator', 'cover', 'intro', 'awards', 'isbn', 'specs', 'keywords']; return <form className="editor" onSubmit={(event) => { event.preventDefault(); save(); }}><h2 id={titleId}>책 편집</h2>{fields.map((field) => <label key={field}>{field}<textarea value={typeof book[field] === 'string' ? book[field] as string : ''} onChange={(event) => setDraft(field, event.target.value)} /></label>)}<fieldset><legend>카테고리</legend>{categories.filter((item) => item !== '보관').map((category) => <label key={category}><input type="checkbox" checked={book.categories.includes(category)} onChange={() => setDraft('categories', book.categories.includes(category) ? book.categories.filter((item) => item !== category) : [...book.categories, category])} />{publicCategoryLabel(category)}</label>)}</fieldset><button>저장</button><button type="button" onClick={discard}>변경 취소</button>{canManageLifecycle && <button type="button" onClick={requestLifecycle}>{lifecycleLabel}</button>}</form>; }
+function EditView({ titleId, book, categories, setDraft, save, discard, canManageLifecycle, requestLifecycle, lifecycleLabel }: { titleId: string; book: Book; categories: string[]; setDraft: (field: keyof Book, value: string | string[]) => void; save: () => void; discard: () => void; canManageLifecycle: boolean; requestLifecycle: () => void; lifecycleLabel: string }) { const fields: (keyof Book)[] = ['title', 'english', 'author', 'illustrator', 'cover', 'intro', 'awards', 'isbn', 'specs', 'keywords']; return <form className="editor" onSubmit={(event) => { event.preventDefault(); save(); }}><h2 id={titleId}>책 편집</h2>{fields.map((field) => <label key={field}>{field}<textarea value={typeof book[field] === 'string' ? book[field] as string : ''} onChange={(event) => setDraft(field, event.target.value)} /></label>)}<label className="cover-fit-select">표지 표시 방식<select value={normalizeCoverFit(book.coverFit)} onChange={(event) => setDraft('coverFit', event.target.value)}><option value="auto">자동</option><option value="cover">채우기 (cover)</option><option value="contain">맞춤 (contain)</option></select><small>자동은 프레임을 채우며, 검토·예외 상태는 여기서 표시 방식을 조정합니다.</small></label><fieldset><legend>카테고리</legend>{categories.filter((item) => item !== '보관').map((category) => <label key={category}><input type="checkbox" checked={book.categories.includes(category)} onChange={() => setDraft('categories', book.categories.includes(category) ? book.categories.filter((item) => item !== category) : [...book.categories, category])} />{publicCategoryLabel(category)}</label>)}</fieldset><button>저장</button><button type="button" onClick={discard}>변경 취소</button>{canManageLifecycle && <button type="button" onClick={requestLifecycle}>{lifecycleLabel}</button>}</form>; }
 function Confirm({ state, close }: { state: ConfirmState; close: () => void }) {
   const root = useRef<HTMLDivElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);

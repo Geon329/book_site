@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "fonts": [
+    {
+      "family": "Cormorant Garamond",
+      "weight": 600,
+      "sourceReleasePageUrl": "https://github.com/CatharsisFonts/Cormorant/releases/tag/v4.002",
+      "directArchiveUrl": "https://github.com/CatharsisFonts/Cormorant/releases/download/v4.002/Cormorant_Webfonts_v4.002.zip",
+      "pinnedReleaseVersion": "v4.002",
+      "upstreamFilename": "Cormorant_Webfonts_v4.002/CormorantGaramond-SemiBold.woff2",
+      "emittedLocalUrl": "/fonts/cormorant-garamond-600.woff2",
+      "format": "woff2",
+      "licenseIdentifier": "SIL-OFL-1.1",
+      "licenseSourceUrl": "https://github.com/CatharsisFonts/Cormorant/blob/v4.002/OFL.txt",
+      "rawByteSize": 204052,
+      "sha256": "af765967938cc1bd47f6de51c0b7992f22ebbd4b58f1fd8c1f37a3dbb80b26c3"
+    },
+    {
+      "family": "Pretendard",
+      "weight": 400,
+      "sourceReleasePageUrl": "https://github.com/orioncactus/pretendard/releases/tag/v1.3.9",
+      "directArchiveUrl": "https://github.com/orioncactus/pretendard/releases/download/v1.3.9/Pretendard-1.3.9.zip",
+      "pinnedReleaseVersion": "v1.3.9",
+      "upstreamFilename": "web/static/woff2/Pretendard-Regular.woff2",
+      "emittedLocalUrl": "/fonts/pretendard-400.woff2",
+      "format": "woff2",
+      "licenseIdentifier": "SIL-OFL-1.1",
+      "licenseSourceUrl": "https://github.com/orioncactus/pretendard/blob/v1.3.9/LICENSE.txt",
+      "rawByteSize": 765892,
+      "sha256": "fad853f7f47c6c8b103171e7193fa095708cdcd70850a71d93aa5379e8a61d63"
+    },
+    {
+      "family": "Pretendard",
+      "weight": 500,
+      "sourceReleasePageUrl": "https://github.com/orioncactus/pretendard/releases/tag/v1.3.9",
+      "directArchiveUrl": "https://github.com/orioncactus/pretendard/releases/download/v1.3.9/Pretendard-1.3.9.zip",
+      "pinnedReleaseVersion": "v1.3.9",
+      "upstreamFilename": "web/static/woff2/Pretendard-Medium.woff2",
+      "emittedLocalUrl": "/fonts/pretendard-500.woff2",
+      "format": "woff2",
+      "licenseIdentifier": "SIL-OFL-1.1",
+      "licenseSourceUrl": "https://github.com/orioncactus/pretendard/blob/v1.3.9/LICENSE.txt",
+      "rawByteSize": 778432,
+      "sha256": "d03481330eeba0659ab5b87f25ceb504a35de377dd90a0d0aba2982eb2d05e2c"
+    },
+    {
+      "family": "Pretendard",
+      "weight": 600,
+      "sourceReleasePageUrl": "https://github.com/orioncactus/pretendard/releases/tag/v1.3.9",
+      "directArchiveUrl": "https://github.com/orioncactus/pretendard/releases/download/v1.3.9/Pretendard-1.3.9.zip",
+      "pinnedReleaseVersion": "v1.3.9",
+      "upstreamFilename": "web/static/woff2/Pretendard-SemiBold.woff2",
+      "emittedLocalUrl": "/fonts/pretendard-600.woff2",
+      "format": "woff2",
+      "licenseIdentifier": "SIL-OFL-1.1",
+      "licenseSourceUrl": "https://github.com/orioncactus/pretendard/blob/v1.3.9/LICENSE.txt",
+      "rawByteSize": 785856,
+      "sha256": "c863f76a7de5c1ddc1ed8b2fa794964530774592c4f31407a84e2a2ae93f17f0"
+    }
+  ]
+}
