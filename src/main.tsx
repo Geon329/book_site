@@ -368,7 +368,6 @@ function PublicHero() {
   return <section className="public-hero" aria-labelledby="public-hero-heading">
     <div className="public-hero-copy">
       <h2 id="public-hero-heading">Curated Stories.<br />Worldwide Impact.</h2>
-      <p>The ChoiceMaker Korea는<br />차별화된 콘텐츠를 발굴하고 전 세계 독자와 연결합니다.</p>
       <a className="public-hero-cta" href="#featured-titles">Explore Our Collection <span aria-hidden="true">→</span></a>
     </div>
     <img className="public-hero-image" src={editorialHero} alt="The ChoiceMaker Korea의 어린이 책 컬렉션" />

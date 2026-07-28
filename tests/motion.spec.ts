@@ -104,7 +104,7 @@ test.describe('book shelf motion', () => {
     const heroImage = hero.locator('.public-hero-image');
     await expect(hero).toBeVisible();
     await expect(hero.getByRole('heading', { name: 'Curated Stories. Worldwide Impact.' })).toBeVisible();
-    await expect(hero.getByText('The ChoiceMaker Korea는차별화된 콘텐츠를 발굴하고 전 세계 독자와 연결합니다.')).toBeVisible();
+    await expect(hero.locator('.public-hero-copy > p')).toHaveCount(0);
     await expect(hero.locator('.public-hero-eyebrow')).toHaveCount(0);
     await expect(hero.getByRole('heading')).toContainText('Curated Stories.');
     await expect(hero.getByRole('heading')).toContainText('Worldwide Impact.');
@@ -120,7 +120,6 @@ test.describe('book shelf motion', () => {
     const typography = await page.evaluate(() => {
       const shelf = document.querySelector<HTMLElement>('.public-shelf')!;
       const heading = document.querySelector<HTMLElement>('.public-hero h2')!;
-      const copy = document.querySelector<HTMLElement>('.public-hero-copy > p')!;
       const image = document.querySelector<HTMLElement>('.public-hero-image')!;
       const navigation = document.querySelector<HTMLElement>('.public-category-navigation')!;
       const featuredHeading = document.querySelector<HTMLElement>('.public-featured-heading')!;
@@ -137,9 +136,6 @@ test.describe('book shelf motion', () => {
         heroHeight: Math.round(hero.getBoundingClientRect().height),
         imageWidth: Math.round(image.getBoundingClientRect().width),
         heroImageOffset: Math.round(image.getBoundingClientRect().left - hero.getBoundingClientRect().left),
-        copyColor: getComputedStyle(copy).color,
-        copyFont: getComputedStyle(copy).fontFamily,
-        copyBreaks: copy.querySelectorAll('br').length,
         navigationWidth: Math.round(navigation.getBoundingClientRect().width),
         viewportWidth: window.innerWidth,
         navigationRule: getComputedStyle(navigation).borderBottom,
@@ -149,7 +145,6 @@ test.describe('book shelf motion', () => {
         navigationControlsWidth: Math.round(filters.getBoundingClientRect().width),
         featuredHeadingWidth: Math.round(featuredHeading.getBoundingClientRect().width),
         featuredLinkOffset: Math.round(featuredLink.getBoundingClientRect().left - featuredHeading.getBoundingClientRect().left),
-        sectionHeadingGap: Math.round(featuredHeading.getBoundingClientRect().top - document.querySelector<HTMLElement>('.public-hero-cta')!.getBoundingClientRect().bottom),
       };
     });
     expect(typography.shelfBackground).toBe('rgb(240, 238, 233)');
@@ -160,10 +155,6 @@ test.describe('book shelf motion', () => {
     expect(typography.heroHeight).toBe(242);
     expect(typography.imageWidth).toBe(400);
     expect(typography.heroImageOffset).toBe(740);
-    expect(typography.copyColor).toBe('rgb(110, 118, 128)');
-    expect(typography.copyFont).toContain('Pretendard');
-    expect(typography.copyBreaks).toBe(1);
-    expect(typography.sectionHeadingGap).toBe(41);
     expect(typography.navigationWidth).toBe(typography.viewportWidth);
     expect(typography.navigationRule).toBe('2px solid rgb(55, 81, 95)');
     expect(typography.navigationControlsLeft).toBe(204);

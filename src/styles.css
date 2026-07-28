@@ -631,13 +631,6 @@ input { min-height: 44px; padding: 0 10px; }
   letter-spacing: -.045em;
   line-height: .98;
 }
-.public-shelf .public-hero-copy > p {
-  max-width: 28rem;
-  margin: 16px 0 0;
-  color: var(--editorial-muted);
-  font-size: 14px;
-  line-height: 1.6;
-}
 .public-shelf .public-hero-cta {
   display: inline-flex;
   align-items: center;
