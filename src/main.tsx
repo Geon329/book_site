@@ -3,14 +3,29 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import booksData from './books.json';
+import { StickyToc, type StickyTocOption } from './components/StickyToc';
 import choiceMakerLogo from '../logo_02.svg';
 import editorialHero from '../item_01.png';
-import stickyNotePosition1 from '../sticky_note_03.svg';
+import stickyNotePosition1 from '../note_Combine_8.png';
 
 type CoverFit = 'auto' | 'cover' | 'contain';
 type CoverStatus = 'loading' | 'safe' | 'review' | 'exception' | 'unavailable';
 type CoverAnalysis = { status: CoverStatus; cropFraction?: number };
-type Book = { id: string; title: string; english: string; author: string; illustrator: string; publisher?: string; categories: string[]; cover: string; coverFit?: CoverFit; intro?: string; introSource?: 'YES24_PARAPHRASE' | 'ADMIN'; awards?: string; isbn?: string; specs?: string; keywords?: string; publishedAt?: string; listPrice?: number; yes24Url?: string; seriesId?: string; seriesTitle?: string; seriesNumber?: number };
+type SchoolGrade = 'kindergarten' | 'elementary-1' | 'elementary-2' | 'elementary-3' | 'elementary-4' | 'elementary-5' | 'elementary-6' | 'middle-1' | 'middle-2' | 'middle-3' | 'high-1' | 'high-2' | 'high-3';
+type AudienceBand = 'early-readers' | 'middle-grade' | 'young-adult';
+type AudienceFilter = 'all' | AudienceBand;
+type RecommendedAudience = {
+  label: string;
+  band?: AudienceBand;
+  ageRange?: { min: number; max: number };
+  schoolRange?: { from: SchoolGrade; to: SchoolGrade };
+  evidenceLabel?: string;
+  sourceType: 'yes24-category' | 'curated-recommendation' | 'unavailable';
+  sourceUrl?: string;
+  confidence: 'high' | 'medium' | 'unavailable';
+  note?: string;
+};
+type Book = { id: string; title: string; english: string; author: string; illustrator: string; publisher?: string; categories: string[]; cover: string; coverFit?: CoverFit; intro?: string; introSource?: 'YES24_PARAPHRASE' | 'ADMIN'; awards?: string; isbn?: string; specs?: string; keywords?: string; publishedAt?: string; listPrice?: number; yes24Url?: string; recommendedAudience?: RecommendedAudience; seriesId?: string; seriesTitle?: string; seriesNumber?: number };
 type Store = { books: Book[]; categories: string[]; catalogVersion: number };
 type CatalogState = { store: Store; selectedCategories: string[] };
 type DetailAudience = 'public' | 'management';
@@ -47,6 +62,12 @@ const minimumDetailTitleSize = 15;
 const seriesNavigationCooldown = 220;
 const shelfCategoryOrder = ['그림책', '픽션', '교육만화', '그래픽노블', '언어학습'];
 const soldRightsPosition1BookIds = new Set(['star-cat-village-4']);
+const audienceFilterOptions: readonly StickyTocOption<AudienceFilter>[] = [
+  { value: 'all', label: 'All' },
+  { value: 'early-readers', label: 'Early Readers' },
+  { value: 'middle-grade', label: 'Middle Grade' },
+  { value: 'young-adult', label: 'Young Adult' },
+];
 const publicCoverFrameRatio = 24 / 35;
 const coverAnalyses = new Map<string, CoverAnalysis>();
 const normalizeCoverFit = (value: unknown): CoverFit => value === 'cover' || value === 'contain' ? value : 'auto';
@@ -239,6 +260,7 @@ function App() {
   const [catalog, setCatalog] = useState<CatalogState>(() => ({ store: loadStore(), selectedCategories: [] }));
   const { store, selectedCategories: selected } = catalog;
   const [surface, setSurface] = useState<'public' | 'management'>('public');
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>('all');
   const [topLayer, setTopLayer] = useState<TopLayer | null>(null);
   const [notice, announce] = useAnnouncer();
   const publicHeading = useRef<HTMLHeadingElement>(null);
@@ -288,10 +310,17 @@ function App() {
     announce(kind === 'rename' ? '카테고리 이름을 변경했습니다.' : '카테고리를 삭제했습니다.');
     return true;
   };
+  const togglePublicCategory = (category: string) => {
+    setAudienceFilter('all');
+    setCatalog((current) => ({ ...current, selectedCategories: current.selectedCategories.includes(category) ? [] : [category] }));
+  };
   const activeBooks = store.books.filter((book) => !book.categories.includes('보관'));
   const selectedCategory = selected[0];
   const visible = activeBooks.filter((book) => !selected.length || book.categories.some((category) => selected.includes(category)));
-  const shelfBooks = Array.from(visible.reduce((groups, book) => {
+  const audienceFiltered = selectedCategory === '픽션' && audienceFilter !== 'all'
+    ? visible.filter((book) => book.recommendedAudience?.band === audienceFilter)
+    : visible;
+  const shelfBooks = Array.from(audienceFiltered.reduce((groups, book) => {
     const seriesId = book.seriesId?.trim();
     const key = seriesId && Number.isFinite(book.seriesNumber) ? `series:${seriesId}` : `book:${book.id}`;
     const current = groups.get(key);
@@ -319,23 +348,24 @@ function App() {
     URL.revokeObjectURL(url);
     announce('카탈로그 JSON을 내보냈습니다.');
   };
+  const featuredShelf = <section className="public-featured" id="featured-titles" aria-labelledby="featured-title-heading">
+    <div className="public-featured-heading">
+      <h2 id="featured-title-heading">{selectedCategory ? publicCategoryLabel(selectedCategory) : 'Featured Titles'}</h2>
+      {!selectedCategory && <>
+        <span className="public-featured-divider" aria-hidden="true" />
+        <a href="#featured-titles">View all titles <span aria-hidden="true">→</span></a>
+      </>}
+    </div>
+    <BookGrid books={shelfBooks} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
+  </section>;
   return <>
     <div id="app-shell">
       {surface === 'public' ? (
         <main id="top" className="public-shelf">
           <PageFrame>
-            <PublicHeader heading={publicHeading} categories={store.categories} selected={selected} toggle={(category) => setCatalog((current) => ({ ...current, selectedCategories: current.selectedCategories.includes(category) ? [] : [category] }))} onOpenManagement={() => setSurface('management')} />
+            <PublicHeader heading={publicHeading} categories={store.categories} selected={selected} toggle={togglePublicCategory} onOpenManagement={() => setSurface('management')} />
             {!selectedCategory && <PublicHero />}
-            <section className="public-featured" id="featured-titles" aria-labelledby="featured-title-heading">
-              <div className="public-featured-heading">
-                <h2 id="featured-title-heading">{selectedCategory ? publicCategoryLabel(selectedCategory) : 'Featured Titles'}</h2>
-                {!selectedCategory && <>
-                  <span className="public-featured-divider" aria-hidden="true" />
-                  <a href="#featured-titles">View all titles <span aria-hidden="true">→</span></a>
-                </>}
-              </div>
-              <BookGrid books={shelfBooks} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
-            </section>
+            <StickyToc active={selectedCategory === '픽션'} title={publicCategoryLabel(selectedCategory ?? '픽션')} options={audienceFilterOptions} value={audienceFilter} onChange={setAudienceFilter}>{featuredShelf}</StickyToc>
           </PageFrame>
         </main>
       ) : (
@@ -726,6 +756,7 @@ function ReadView({ book, titleId, seriesBooks, seriesIndex, onChangeSeriesVolum
   ].filter(([, value]) => Boolean(value)) as [string, string][];
   const publication = [
     ['출판사', book.publisher],
+    ['추천 독자', book.recommendedAudience?.label],
     ['발행일', book.publishedAt],
     ['정가', book.listPrice ? `${book.listPrice.toLocaleString('ko-KR')}원` : undefined],
     ['ISBN', book.isbn],

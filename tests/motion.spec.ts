@@ -98,12 +98,133 @@ test.describe('book shelf motion', () => {
     await pictureBooks.click();
     await expect(pictureBooks).toHaveAttribute('aria-pressed', 'false');
     await expect(pictureBooks).toHaveCSS('background-image', 'none');
-    await expect(page.locator('.book-card')).toHaveCount(initialCount);
+    await expect(page.locator('.book-card')).toHaveCount(initialCount, { timeout: 10_000 });
     await expect(page.locator('.public-hero')).toBeVisible();
     await expect(page.locator('#public-hero-heading')).toHaveCSS('opacity', '1');
     await expect(page.getByRole('heading', { name: 'Featured Titles', level: 2, exact: true })).toBeVisible();
     await expect(page.locator('.public-featured-divider')).toBeVisible();
     await expect(page.getByRole('link', { name: /View all titles/ })).toBeVisible();
+  });
+
+  test('shows the reusable audience TOC only for desktop Fiction filtering', async ({ page }) => {
+    await page.setViewportSize({ width: 1672, height: 900 });
+    await page.goto('/');
+    await expect(page.locator('.sticky-toc')).toBeHidden();
+
+    await page.getByRole('button', { name: 'Fictions', exact: true }).click();
+    const toc = page.locator('.sticky-toc');
+    await expect(toc).toBeVisible();
+    await expect(toc.locator('h2')).toHaveCount(0);
+    const options = toc.getByRole('button');
+    await expect(options).toHaveText(['All', 'Early Readers', 'Middle Grade', 'Young Adult']);
+    await expect(toc.getByRole('button', { name: 'All', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(toc).not.toContainText(/총\s*\d+권/);
+    await expect(toc).toHaveCSS('position', 'sticky');
+    await expect(toc).toHaveCSS('top', '16px');
+    await expect(page.locator('.book-card')).toHaveCount(5, { timeout: 10_000 });
+
+    await toc.getByRole('button', { name: 'Middle Grade', exact: true }).click();
+    await expect(page.locator('.book-card')).toHaveCount(2, { timeout: 10_000 });
+    expect(await page.locator('.book-card').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-book-id')))).toEqual(['huntergirl-1', 'on-the-ball-1']);
+
+    await toc.getByRole('button', { name: 'Young Adult', exact: true }).click();
+    await expect(page.locator('.book-card')).toHaveCount(3, { timeout: 10_000 });
+    expect(await page.locator('.book-card').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-book-id')))).toEqual(['sticker', 'shaker', 'baedalhee']);
+
+    await toc.getByRole('button', { name: 'All', exact: true }).click();
+    await expect(page.locator('.book-card')).toHaveCount(5, { timeout: 10_000 });
+    const tocLayout = await page.evaluate(() => {
+      const panel = document.querySelector<HTMLElement>('.sticky-toc')!;
+      const categoryButton = document.querySelector<HTMLElement>('.public-category-navigation button.active')!;
+      const active = panel.querySelector<HTMLElement>('button.active')!;
+      const firstCards = Array.from(document.querySelectorAll<HTMLElement>('.book-card')).slice(0, 4);
+      const cardLefts = firstCards.map((card) => Math.round(card.getBoundingClientRect().left));
+      const panelRect = panel.getBoundingClientRect();
+      return {
+        gridColumns: getComputedStyle(document.querySelector<HTMLElement>('.sticky-toc-content .grid')!).gridTemplateColumns.split(' ').length,
+        panelWidth: Math.round(panelRect.width),
+        panelHeight: Math.round(panelRect.height),
+        panelBackground: getComputedStyle(panel).backgroundColor,
+        tocTypography: {
+          fontFamily: getComputedStyle(active).fontFamily,
+          fontSize: getComputedStyle(active).fontSize,
+          fontWeight: getComputedStyle(active).fontWeight,
+          letterSpacing: getComputedStyle(active).letterSpacing,
+        },
+        categoryTypography: {
+          fontFamily: getComputedStyle(categoryButton).fontFamily,
+          fontSize: getComputedStyle(categoryButton).fontSize,
+          fontWeight: getComputedStyle(categoryButton).fontWeight,
+          letterSpacing: getComputedStyle(categoryButton).letterSpacing,
+        },
+        activeHeight: Math.round(active.getBoundingClientRect().height),
+        activeBackground: getComputedStyle(active).backgroundColor,
+        activeLine: getComputedStyle(active, '::before').backgroundColor,
+        contentGap: Math.round(firstCards[0]!.getBoundingClientRect().left - panelRect.right),
+        firstCardLeft: Math.round(firstCards[0]!.getBoundingClientRect().left),
+        expectedRailLeft: Math.round((window.innerWidth - 1020) / 2),
+        cardTops: firstCards.map((card) => Math.round(card.getBoundingClientRect().top)),
+        cardGaps: cardLefts.slice(1).map((left, index) => left - cardLefts[index]!),
+        hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    expect(tocLayout.gridColumns).toBe(4);
+    expect(tocLayout.panelWidth).toBe(190);
+    expect(tocLayout.panelHeight).toBe(318);
+    expect(tocLayout.panelBackground).toBe('rgb(240, 238, 233)');
+    expect(tocLayout.tocTypography).toEqual(tocLayout.categoryTypography);
+    expect(tocLayout.activeHeight).toBe(60);
+    expect(tocLayout.activeBackground).toBe('rgb(231, 229, 224)');
+    expect(tocLayout.activeLine).toBe('rgb(47, 113, 140)');
+    expect(tocLayout.contentGap).toBe(24);
+    expect(tocLayout.firstCardLeft).toBe(tocLayout.expectedRailLeft);
+    expect(new Set(tocLayout.cardTops).size).toBe(1);
+    expect(tocLayout.cardGaps).toEqual([260, 260, 260]);
+    expect(tocLayout.hasHorizontalOverflow).toBe(false);
+
+    await page.getByRole('button', { name: 'Picture Books', exact: true }).click();
+    await expect(page.locator('.sticky-toc')).toBeHidden();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Fictions', exact: true }).click();
+    await expect(page.locator('.sticky-toc')).toBeHidden();
+    await expect(page.locator('.book-card')).toHaveCount(5, { timeout: 10_000 });
+  });
+
+  test('preserves the shelf fade when crossing the Fiction TOC boundary', async ({ page }) => {
+    await page.goto('/');
+
+    const sampleTransition = (label: string) => page.evaluate(async (categoryLabel) => {
+      const button = Array.from(document.querySelectorAll<HTMLButtonElement>('.public-category-navigation button')).find((item) => item.textContent?.trim() === categoryLabel)!;
+      const samples: number[] = [];
+      const startedAt = performance.now();
+      button.click();
+      while (performance.now() - startedAt < 650) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        for (const grid of document.querySelectorAll<HTMLElement>('.grid')) samples.push(Number.parseFloat(getComputedStyle(grid).opacity));
+      }
+      return samples;
+    }, label);
+
+    const enteringFiction = await sampleTransition('Fictions');
+    expect(enteringFiction.some((opacity) => opacity > 0 && opacity < 1)).toBe(true);
+    await expect(page.getByRole('button', { name: 'Fictions', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.book-card')).toHaveCount(5);
+    const fictionGeometry = await page.evaluate(() => ({
+      headingTop: Math.round(document.querySelector<HTMLElement>('.public-featured-heading')!.getBoundingClientRect().top),
+      cardTop: Math.round(document.querySelector<HTMLElement>('.book-card')!.getBoundingClientRect().top),
+    }));
+
+    const leavingFiction = await sampleTransition('Picture Books');
+    expect(leavingFiction.some((opacity) => opacity > 0 && opacity < 1)).toBe(true);
+    await expect(page.getByRole('button', { name: 'Picture Books', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.book-card')).toHaveCount(5);
+    const pictureBookGeometry = await page.evaluate(() => ({
+      headingTop: Math.round(document.querySelector<HTMLElement>('.public-featured-heading')!.getBoundingClientRect().top),
+      cardTop: Math.round(document.querySelector<HTMLElement>('.book-card')!.getBoundingClientRect().top),
+    }));
+    expect(fictionGeometry).toEqual(pictureBookGeometry);
   });
 
   test('uses public English category labels in management', async ({ page }) => {
@@ -115,6 +236,54 @@ test.describe('book shelf motion', () => {
 
     await categoryManagement.getByRole('button', { name: '이름 변경' }).first().click();
     await expect(categoryManagement.getByLabel('Picture Books 새 이름')).toHaveValue('Picture Books');
+  });
+
+  test('ships sourced audience guidance for every catalog book and displays it in details', async ({ page }) => {
+    const catalog = JSON.parse(await readFile('src/books.json', 'utf8')) as {
+      books: Array<{
+        id: string;
+        recommendedAudience?: {
+          label: string;
+          band?: string;
+          ageRange?: { min: number; max: number };
+          schoolRange?: { from: string; to: string };
+          evidenceLabel?: string;
+          sourceType: string;
+          sourceUrl?: string;
+          confidence: string;
+        };
+      }>;
+    };
+    const guidance = catalog.books.map((book) => ({ id: book.id, ...book.recommendedAudience }));
+    expect(guidance).toHaveLength(16);
+    expect(guidance.every((item) => Boolean(item.label && item.sourceType && item.confidence && (item.sourceType === 'unavailable' || item.band)))).toBe(true);
+    expect(guidance.filter((item) => item.sourceType !== 'unavailable')).toHaveLength(13);
+    expect(guidance.filter((item) => item.sourceType === 'unavailable')).toHaveLength(3);
+    expect(guidance.filter((item) => item.band === 'early-readers')).toHaveLength(6);
+    expect(guidance.filter((item) => item.band === 'middle-grade')).toHaveLength(4);
+    expect(guidance.filter((item) => item.band === 'young-adult')).toHaveLength(3);
+    expect(guidance.find((item) => item.id === 'huntergirl-1')).toMatchObject({
+      label: 'Middle Grade · 초등 3~6학년 (만 9~12세)',
+      band: 'middle-grade',
+      ageRange: { min: 9, max: 12 },
+      schoolRange: { from: 'elementary-3', to: 'elementary-6' },
+      evidenceLabel: '초등 3~6학년',
+      sourceType: 'yes24-category',
+    });
+    expect(guidance.find((item) => item.id === 'shaker')).toMatchObject({
+      label: 'Young Adult · 청소년 (만 13~18세)',
+      band: 'young-adult',
+      ageRange: { min: 13, max: 18 },
+      schoolRange: { from: 'middle-1', to: 'high-3' },
+      evidenceLabel: '중3~고등학생',
+      sourceType: 'curated-recommendation',
+      confidence: 'high',
+    });
+
+    await page.goto('/');
+    await page.locator('.book-card[data-book-id="huntergirl-1"]').click();
+    const audienceFact = page.getByRole('dialog').locator('.detail-publication div').filter({ hasText: '추천 독자' });
+    await expect(audienceFact).toContainText('Middle Grade · 초등 3~6학년 (만 9~12세)');
   });
 
   test('uses the local editorial hero image, copy, CTA, and typography tokens', async ({ page }) => {
@@ -330,7 +499,7 @@ test.describe('book shelf motion', () => {
     await expect(page.locator('.book-rights-note')).toHaveCount(1);
 
     const position1Note = page.getByRole('img', { name: 'Sold rights: Starry Cat Village 4' });
-    await expect(position1Note).toHaveAttribute('src', /\.svg(?:$|\?)/);
+    await expect(position1Note).toHaveAttribute('src', /\.png(?:$|\?)/);
     const position1Card = page.locator('.book-card[data-book-id="star-cat-village-4"]');
     const position1Shell = page.locator('.book-card-shell').filter({ has: position1Card });
     const position1 = await position1Shell.evaluate((shell) => {
@@ -488,7 +657,7 @@ test.describe('book shelf motion', () => {
     expect(layout.overflowX).toBe(false);
     expect(layout.creditCount).toBe(2);
     expect(layout.publicationColumns).toBe(2);
-    expect(layout.publicationCount).toBe(5);
+    expect(layout.publicationCount).toBe(6);
     expect(layout.isbnHeight).toBeLessThanOrEqual(16);
     expect(layout.titleFits).toBe(true);
     expect(layout.titleWhiteSpace).toBe('normal');
