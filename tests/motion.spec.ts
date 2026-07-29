@@ -70,17 +70,40 @@ test.describe('book shelf motion', () => {
     const graphicNovels = page.getByRole('button', { name: 'Graphic Novels', exact: true });
     await graphicNovels.click();
     await expect(graphicNovels).toHaveAttribute('aria-pressed', 'true');
+    await expect(graphicNovels).toHaveCSS('background-color', 'rgb(55, 81, 95)');
+    await expect(graphicNovels).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expect(graphicNovels).toHaveCSS('background-image', 'none');
+    await expect(page.locator('.public-hero')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Featured Titles', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Graphic Novels', level: 2, exact: true })).toBeVisible();
+    await expect(page.locator('.public-featured-divider')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /View all titles/ })).toHaveCount(0);
     await expect.poll(() => page.locator('.book-card').count()).toBeGreaterThan(0);
     await expect.poll(() => page.locator('.book-card').count()).toBeLessThan(initialCount);
+    expect(await page.locator('.book-cover').evaluateAll((covers) => covers.every((cover) => cover.getAnimations().length === 0))).toBe(true);
     const filteredViewport = await page.evaluate(() => ({
       clientWidth: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
     }));
     expect(filteredViewport.scrollWidth).toBeLessThanOrEqual(filteredViewport.clientWidth);
 
-    await graphicNovels.click();
+    const pictureBooks = page.getByRole('button', { name: 'Picture Books', exact: true });
+    await pictureBooks.click();
     await expect(graphicNovels).toHaveAttribute('aria-pressed', 'false');
+    await expect(pictureBooks).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.public-category-navigation [aria-pressed="true"]')).toHaveCount(1);
+    await expect(page.getByRole('heading', { name: 'Graphic Novels', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Picture Books', level: 2, exact: true })).toBeVisible();
+
+    await pictureBooks.click();
+    await expect(pictureBooks).toHaveAttribute('aria-pressed', 'false');
+    await expect(pictureBooks).toHaveCSS('background-image', 'none');
     await expect(page.locator('.book-card')).toHaveCount(initialCount);
+    await expect(page.locator('.public-hero')).toBeVisible();
+    await expect(page.locator('#public-hero-heading')).toHaveCSS('opacity', '1');
+    await expect(page.getByRole('heading', { name: 'Featured Titles', level: 2, exact: true })).toBeVisible();
+    await expect(page.locator('.public-featured-divider')).toBeVisible();
+    await expect(page.getByRole('link', { name: /View all titles/ })).toBeVisible();
   });
 
   test('uses public English category labels in management', async ({ page }) => {
@@ -127,6 +150,7 @@ test.describe('book shelf motion', () => {
       const hero = heading.closest<HTMLElement>('.public-hero')!;
       const filters = document.querySelector<HTMLElement>('.public-category-navigation .filters')!;
       const featuredLink = featuredHeading.querySelector<HTMLElement>('a')!;
+      const firstCard = document.querySelector<HTMLElement>('.book-card')!;
       return {
         shelfBackground: getComputedStyle(shelf).backgroundColor,
         headingColor: getComputedStyle(heading).color,
@@ -135,7 +159,9 @@ test.describe('book shelf motion', () => {
         headingBreaks: heading.querySelectorAll('br').length,
         heroHeight: Math.round(hero.getBoundingClientRect().height),
         imageWidth: Math.round(image.getBoundingClientRect().width),
-        heroImageOffset: Math.round(image.getBoundingClientRect().left - hero.getBoundingClientRect().left),
+        heroLeft: Math.round(hero.getBoundingClientRect().left),
+        heroWidth: Math.round(hero.getBoundingClientRect().width),
+        heroImageRightOffset: Math.round(image.getBoundingClientRect().right - hero.getBoundingClientRect().left),
         navigationWidth: Math.round(navigation.getBoundingClientRect().width),
         viewportWidth: window.innerWidth,
         navigationRule: getComputedStyle(navigation).borderBottom,
@@ -143,8 +169,10 @@ test.describe('book shelf motion', () => {
         featuredDividerHeight: getComputedStyle(featuredDivider).height,
         navigationControlsLeft: Math.round(filters.getBoundingClientRect().left),
         navigationControlsWidth: Math.round(filters.getBoundingClientRect().width),
+        featuredHeadingLeft: Math.round(featuredHeading.getBoundingClientRect().left),
+        firstCardLeft: Math.round(firstCard.getBoundingClientRect().left),
         featuredHeadingWidth: Math.round(featuredHeading.getBoundingClientRect().width),
-        featuredLinkOffset: Math.round(featuredLink.getBoundingClientRect().left - featuredHeading.getBoundingClientRect().left),
+        featuredLinkRightOffset: Math.round(featuredLink.getBoundingClientRect().right - featuredHeading.getBoundingClientRect().left),
       };
     });
     expect(typography.shelfBackground).toBe('rgb(240, 238, 233)');
@@ -154,13 +182,17 @@ test.describe('book shelf motion', () => {
     expect(typography.headingBreaks).toBe(1);
     expect(typography.heroHeight).toBe(242);
     expect(typography.imageWidth).toBe(400);
-    expect(typography.heroImageOffset).toBe(740);
+    expect(typography.heroWidth).toBe(1020);
+    expect(typography.heroImageRightOffset).toBeLessThanOrEqual(typography.heroWidth);
     expect(typography.navigationWidth).toBe(typography.viewportWidth);
     expect(typography.navigationRule).toBe('2px solid rgb(55, 81, 95)');
-    expect(typography.navigationControlsLeft).toBe(204);
-    expect(typography.navigationControlsWidth).toBe(1156);
-    expect(typography.featuredHeadingWidth).toBe(1156);
-    expect(typography.featuredLinkOffset).toBe(1052);
+    expect(typography.navigationControlsLeft).toBe((typography.viewportWidth - 1020) / 2);
+    expect(typography.navigationControlsWidth).toBe(1020);
+    expect(typography.featuredHeadingLeft).toBe(typography.navigationControlsLeft);
+    expect(typography.firstCardLeft).toBe(typography.navigationControlsLeft);
+    expect(typography.heroLeft).toBe(typography.navigationControlsLeft);
+    expect(typography.featuredHeadingWidth).toBe(1020);
+    expect(typography.featuredLinkRightOffset).toBe(1020);
     expect(typography.featuredHeadingFontSize).toBe('28px');
     expect(typography.featuredDividerHeight).toBe('1px');
     await expect(page.locator('.public-featured-heading').getByRole('link', { name: /View all titles/ })).toBeVisible();
@@ -261,13 +293,13 @@ test.describe('book shelf motion', () => {
     expect(new Set(layout.map((card) => card.cardTop)).size).toBe(1);
     expect(new Set(layout.map((card) => card.cardWidth)).size).toBe(1);
     for (const card of layout) {
-      expect(card.cardWidth).toBe(274);
-      expect(card.cardHeight).toBe(482);
+      expect(card.cardWidth).toBe(240);
+      expect(card.cardHeight).toBe(430);
       expect(card.cardBorder).toBe('1px solid rgb(216, 211, 204)');
       expect(card.cardBorderRadius).toBe('10px');
       expect(card.cardShadow).toBe('rgba(55, 81, 95, 0.08) 0px 4px 12px 0px');
-      expect(card.coverWidth).toBe(274);
-      expect(card.coverHeight).toBe(400);
+      expect(card.coverWidth).toBe(240);
+      expect(card.coverHeight).toBe(350);
       expect(card.categoryFontSize).toBe('10px');
       expect(card.categoryLineHeight).toBe('14px');
       expect(card.titleFontSize).toBe('15px');
@@ -340,13 +372,14 @@ test.describe('book shelf motion', () => {
     expect(new Set(layout.slice(4).map((card) => card.coverTop)).size).toBe(1);
     expect(layout[4].coverTop).toBeGreaterThan(layout[0].coverTop);
     expect(layout[1].creatorTop).toBe(layout[0].creatorTop);
-    expect(layout[0].titleMinBlockSize).toBe('auto');
+    expect(layout[0].titleMinBlockSize).toBe('36px');
   });
-  test('fades in loaded covers without changing their geometry', async ({ page }) => {
+  test('shows covers without a separate image animation or geometry change', async ({ page }) => {
     await page.goto('/');
     const cover = page.locator('.book-cover').first();
     await expect(cover).toBeVisible();
-    await expect.poll(() => cover.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
+    await expect(cover).toHaveCSS('opacity', '1');
+    expect(await cover.evaluate((element) => element.getAnimations().length)).toBe(0);
     const box = await cover.boundingBox();
     expect(box?.width).toBeGreaterThan(0);
     expect(box?.height).toBeGreaterThan(0);
@@ -455,6 +488,9 @@ test.describe('book shelf motion', () => {
     const context = await browser.newContext({ reducedMotion: 'reduce' });
     const page = await context.newPage();
     await page.goto('/');
+    const heroHeading = page.locator('#public-hero-heading');
+    await expect(heroHeading).toHaveCSS('opacity', '1');
+    expect(await heroHeading.evaluate((element) => element.getAnimations().length)).toBe(0);
     const card = page.locator('.book-card').first();
     await card.hover();
     await expect.poll(() => card.evaluate((element) => getComputedStyle(element).transform)).toBe('none');

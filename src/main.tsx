@@ -40,11 +40,12 @@ const categoryIdForLabel = (label: string) => {
 };
 type CatalogDocument = { schemaVersion: number; catalogVersion: number; categories: string[]; books: Book[] };
 type PersistedStore = Store & { sourceFingerprint?: string };
-const makeCover = (title: string, color: string) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800"><rect width="600" height="800" fill="${color}"/><rect x="38" y="38" width="524" height="724" fill="none" stroke="#ffffff" stroke-opacity=".45"/><text x="72" y="610" fill="#ffffff" font-family="Georgia,serif" font-size="36">${title}</text><text x="72" y="678" fill="#ffffff" font-family="Arial,sans-serif" font-size="16" letter-spacing="4">BOOK MARGIN</text></svg>`)}`;
+const fallbackCoverTokens = { surface: '#7b6d62', ink: '#ffffff' } as const;
+const makeCover = (title: string) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800"><rect width="600" height="800" fill="${fallbackCoverTokens.surface}"/><rect x="38" y="38" width="524" height="724" fill="none" stroke="${fallbackCoverTokens.ink}" stroke-opacity=".45"/><text x="72" y="610" fill="${fallbackCoverTokens.ink}" font-family="Georgia,serif" font-size="36">${title}</text><text x="72" y="678" fill="${fallbackCoverTokens.ink}" font-family="Arial,sans-serif" font-size="16" letter-spacing="4">BOOK MARGIN</text></svg>`)}`;
 const minimumDetailTitleSize = 15;
 const seriesNavigationCooldown = 220;
 const shelfCategoryOrder = ['그림책', '픽션', '교육만화', '그래픽노블', '언어학습'];
-const publicCoverFrameRatio = 274 / 400;
+const publicCoverFrameRatio = 24 / 35;
 const coverAnalyses = new Map<string, CoverAnalysis>();
 const normalizeCoverFit = (value: unknown): CoverFit => value === 'cover' || value === 'contain' ? value : 'auto';
 const classifyCover = (width: number, height: number): CoverAnalysis => {
@@ -105,7 +106,7 @@ function migrateSeedContent(book: Book, loadedVersion: number): Book {
 function normalizeBook(book: Book, categories: string[]): Book {
   const safeCategories = Array.isArray(book.categories) ? [...new Set(book.categories.filter((item) => categories.includes(item)))] : [];
   const hasStaticCover = typeof book.cover === 'string' && /^(?:[a-z0-9][a-z0-9_-]*\/)*[a-z0-9][a-z0-9._-]*\.(?:avif|webp|png|jpe?g)$/i.test(book.cover);
-  const cover = typeof book.cover === 'string' && (book.cover.startsWith('data:image/svg+xml') || book.cover.startsWith('https://image.yes24.com/goods/') || hasStaticCover) ? book.cover : makeCover(book.title || '책', '#7b6d62');
+  const cover = typeof book.cover === 'string' && (book.cover.startsWith('data:image/svg+xml') || book.cover.startsWith('https://image.yes24.com/goods/') || hasStaticCover) ? book.cover : makeCover(book.title || '책');
   const normalized: Book = { ...book, categories: safeCategories, cover };
   if (normalizeCoverFit(book.coverFit) === 'auto') delete normalized.coverFit;
   else normalized.coverFit = normalizeCoverFit(book.coverFit);
@@ -286,6 +287,7 @@ function App() {
     return true;
   };
   const activeBooks = store.books.filter((book) => !book.categories.includes('보관'));
+  const selectedCategory = selected[0];
   const visible = activeBooks.filter((book) => !selected.length || book.categories.some((category) => selected.includes(category)));
   const shelfBooks = Array.from(visible.reduce((groups, book) => {
     const seriesId = book.seriesId?.trim();
@@ -320,13 +322,15 @@ function App() {
       {surface === 'public' ? (
         <main id="top" className="public-shelf">
           <PageFrame>
-            <PublicHeader heading={publicHeading} categories={store.categories} selected={selected} toggle={(category) => setCatalog((current) => ({ ...current, selectedCategories: current.selectedCategories.includes(category) ? current.selectedCategories.filter((item) => item !== category) : [...current.selectedCategories, category] }))} onOpenManagement={() => setSurface('management')} />
-            <PublicHero />
+            <PublicHeader heading={publicHeading} categories={store.categories} selected={selected} toggle={(category) => setCatalog((current) => ({ ...current, selectedCategories: current.selectedCategories.includes(category) ? [] : [category] }))} onOpenManagement={() => setSurface('management')} />
+            {!selectedCategory && <PublicHero />}
             <section className="public-featured" id="featured-titles" aria-labelledby="featured-title-heading">
               <div className="public-featured-heading">
-                <h2 id="featured-title-heading">Featured Titles</h2>
-                <span className="public-featured-divider" aria-hidden="true" />
-                <a href="#featured-titles">View all titles <span aria-hidden="true">→</span></a>
+                <h2 id="featured-title-heading">{selectedCategory ? publicCategoryLabel(selectedCategory) : 'Featured Titles'}</h2>
+                {!selectedCategory && <>
+                  <span className="public-featured-divider" aria-hidden="true" />
+                  <a href="#featured-titles">View all titles <span aria-hidden="true">→</span></a>
+                </>}
               </div>
               <BookGrid books={shelfBooks} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
             </section>
@@ -365,9 +369,11 @@ function PublicHeader({ heading, categories, selected, toggle, onOpenManagement 
   </header>;
 }
 function PublicHero() {
+  const reduceMotion = useReducedMotion() ?? false;
+  const headingTransition = { duration: 0.36, ease: 'easeOut' as const };
   return <section className="public-hero" aria-labelledby="public-hero-heading">
     <div className="public-hero-copy">
-      <h2 id="public-hero-heading">Curated Stories.<br />Worldwide Impact.</h2>
+      <motion.h2 id="public-hero-heading" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} transition={reduceMotion ? undefined : headingTransition}>Curated Stories.<br />Worldwide Impact.</motion.h2>
       <a className="public-hero-cta" href="#featured-titles">Explore Our Collection <span aria-hidden="true">→</span></a>
     </div>
     <img className="public-hero-image" src={editorialHero} alt="The ChoiceMaker Korea의 어린이 책 컬렉션" />
@@ -376,46 +382,32 @@ function PublicHero() {
 function ShelfControls({ categories, selected, toggle }: { categories: string[]; selected: string[]; toggle: (category: string) => void }) { return <div className="filters" role="group" aria-label="카테고리 필터">{categories.filter((category) => category !== '보관').map((category) => { const active = selected.includes(category); return <button key={category} className={active ? 'active' : ''} aria-pressed={active} onClick={() => toggle(category)}>{publicCategoryLabel(category)}</button>; })}</div>; }
 function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; selected: boolean; hasActiveBooks: boolean }) {
   const reduceMotion = useReducedMotion() ?? false;
-  const cardTransition = { duration: 0.22, ease: 'easeOut' as const };
-  const panelTransition = { duration: 0.16, ease: 'easeOut' as const };
+  const panelTransition = { duration: 0.28, ease: 'easeOut' as const };
+  const booksKey = books.map((book) => book.id).join(',');
   return <AnimatePresence initial={false} mode="wait">
-    {books.length ? <motion.section key="books" className="grid" aria-label="책 목록" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : panelTransition}>
-      <AnimatePresence initial={false} mode="sync">
-        {books.map((book) => {
-          const creator = book.illustrator && book.illustrator !== '없음' ? `${book.author} · ${book.illustrator}` : book.author;
-          return <motion.button
-            key={book.id}
-            className="book-card"
-            data-book-id={book.id}
-            layout={!reduceMotion ? 'position' : false}
-            initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-            exit={reduceMotion ? undefined : { opacity: 0 }}
-            transition={reduceMotion ? undefined : cardTransition}
-            whileHover={reduceMotion ? undefined : { y: -3 }}
-            onClick={(event) => onOpen(book, event)}
-          >
-            <BookCover book={book} />
-            <span className="book-card-copy">
-              <span className="category">{book.categories.filter((item) => item !== '보관').map(publicCategoryLabel).join(' · ')}</span>
-              <strong>{book.seriesId && Number.isFinite(book.seriesNumber) ? book.seriesTitle || book.english || book.title : book.english || book.title}</strong>
-              <small className="book-creators">{creator} · {book.publisher}</small>
-            </span>
-          </motion.button>;
-        })}
-      </AnimatePresence>
-    </motion.section> : <motion.p key="empty" className="empty" initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : panelTransition}>{hasActiveBooks && selected ? '이 카테고리에 공개된 책이 없습니다' : '현재 공개된 책이 없습니다'}</motion.p>}
+    {books.length ? <motion.section key={`books:${booksKey}`} className="grid" aria-label="책 목록" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : panelTransition}>
+      {books.map((book) => {
+        const creator = book.illustrator && book.illustrator !== '없음' ? `${book.author} · ${book.illustrator}` : book.author;
+        return <button
+          key={book.id}
+          className="book-card"
+          data-book-id={book.id}
+          onClick={(event) => onOpen(book, event)}
+        >
+          <BookCover book={book} />
+          <span className="book-card-copy">
+            <span className="category">{book.categories.filter((item) => item !== '보관').map(publicCategoryLabel).join(' · ')}</span>
+            <strong>{book.seriesId && Number.isFinite(book.seriesNumber) ? book.seriesTitle || book.english || book.title : book.english || book.title}</strong>
+            <small className="book-creators">{creator} · {book.publisher}</small>
+          </span>
+        </button>;
+      })}
+    </motion.section> : <motion.p key="empty" className="empty" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : panelTransition}>{hasActiveBooks && selected ? '이 카테고리에 공개된 책이 없습니다' : '현재 공개된 책이 없습니다'}</motion.p>}
   </AnimatePresence>;
 }
 function BookCover({ book }: { book: Book }) {
-  const reduceMotion = useReducedMotion() ?? false;
-  const image = useRef<HTMLImageElement>(null);
-  const [loaded, setLoaded] = useState(false);
   useCoverAnalysis(book.cover);
-  useEffect(() => {
-    setLoaded(Boolean(image.current?.complete));
-  }, [book.cover]);
-  return <span className="cover-frame"><motion.img ref={image} className="book-cover" src={book.cover} alt="" loading="lazy" style={{ objectFit: resolvedCoverFit(book) }} onLoad={() => setLoaded(true)} onError={() => setLoaded(true)} initial={false} animate={{ opacity: reduceMotion || loaded ? 1 : 0 }} transition={reduceMotion ? { duration: 0 } : { duration: 0.18, ease: 'easeOut' }} /></span>;
+  return <span className="cover-frame"><img className="book-cover" src={book.cover} alt="" loading="lazy" style={{ objectFit: resolvedCoverFit(book) }} /></span>;
 }
 
 function ManagementWorkspace({ store, heading, onReturn, onOpen, onNew, onImport, onExport, onCreateCategory, onRename, onDeleteCategory, onDeleteBook }: { store: Store; heading: React.RefObject<HTMLHeadingElement | null>; onReturn: () => void; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; onNew: (event: React.MouseEvent<HTMLButtonElement>) => void; onImport: (file: File) => void; onExport: () => void; onCreateCategory: (name: string) => boolean; onRename: (from: string, to: string) => boolean; onDeleteCategory: (category: string, event: React.MouseEvent<HTMLButtonElement>) => void; onDeleteBook: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void }) {
@@ -473,7 +465,7 @@ function BookDetailDialog({ detail, store, categories, updateBook, updateBookCat
   const reduceMotion = useReducedMotion() ?? false;
   const [local, setLocal] = useState<DetailState>(() => {
     if (detail.identity.kind !== 'create') return detail;
-    const draft = { id: crypto.randomUUID(), title: '새 책', english: 'New Book', author: '', illustrator: '', categories: [], cover: makeCover('새 책', '#7b6d62'), introSource: 'ADMIN' as const };
+    const draft = { id: crypto.randomUUID(), title: '새 책', english: 'New Book', author: '', illustrator: '', categories: [], cover: makeCover('새 책'), introSource: 'ADMIN' as const };
     return { ...detail, phase: 'edit', baseline: copy(draft), draft };
   });
   const [status, announce] = useAnnouncer();
