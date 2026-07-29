@@ -5,6 +5,7 @@ import './styles.css';
 import booksData from './books.json';
 import choiceMakerLogo from '../logo_02.svg';
 import editorialHero from '../item_01.png';
+import stickyNotePosition1 from '../sticky_note_03.svg';
 
 type CoverFit = 'auto' | 'cover' | 'contain';
 type CoverStatus = 'loading' | 'safe' | 'review' | 'exception' | 'unavailable';
@@ -45,6 +46,7 @@ const makeCover = (title: string) => `data:image/svg+xml;charset=UTF-8,${encodeU
 const minimumDetailTitleSize = 15;
 const seriesNavigationCooldown = 220;
 const shelfCategoryOrder = ['그림책', '픽션', '교육만화', '그래픽노블', '언어학습'];
+const soldRightsPosition1BookIds = new Set(['star-cat-village-4']);
 const publicCoverFrameRatio = 24 / 35;
 const coverAnalyses = new Map<string, CoverAnalysis>();
 const normalizeCoverFit = (value: unknown): CoverFit => value === 'cover' || value === 'contain' ? value : 'auto';
@@ -374,6 +376,7 @@ function PublicHero() {
   return <section className="public-hero" aria-labelledby="public-hero-heading">
     <div className="public-hero-copy">
       <motion.h2 id="public-hero-heading" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} transition={reduceMotion ? undefined : headingTransition}>Curated Stories.<br />Worldwide Impact.</motion.h2>
+      <p className="public-hero-subtitle">The ChoiceMaker Korea<br />2026 Frankfurt BookFair Exhibit Titles</p>
       <a className="public-hero-cta" href="#featured-titles">Explore Our Collection <span aria-hidden="true">→</span></a>
     </div>
     <img className="public-hero-image" src={editorialHero} alt="The ChoiceMaker Korea의 어린이 책 컬렉션" />
@@ -387,20 +390,22 @@ function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; 
   return <AnimatePresence initial={false} mode="wait">
     {books.length ? <motion.section key={`books:${booksKey}`} className="grid" aria-label="책 목록" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : panelTransition}>
       {books.map((book) => {
-        const creator = book.illustrator && book.illustrator !== '없음' ? `${book.author} · ${book.illustrator}` : book.author;
-        return <button
-          key={book.id}
-          className="book-card"
-          data-book-id={book.id}
-          onClick={(event) => onOpen(book, event)}
-        >
-          <BookCover book={book} />
-          <span className="book-card-copy">
-            <span className="category">{book.categories.filter((item) => item !== '보관').map(publicCategoryLabel).join(' · ')}</span>
-            <strong>{book.seriesId && Number.isFinite(book.seriesNumber) ? book.seriesTitle || book.english || book.title : book.english || book.title}</strong>
-            <small className="book-creators">{creator} · {book.publisher}</small>
-          </span>
-        </button>;
+        const credits = [book.author, book.illustrator && book.illustrator !== '없음' ? book.illustrator : '', book.publisher].filter((value): value is string => typeof value === 'string' && value.trim() !== '');
+        return <div key={book.id} className="book-card-shell">
+          <button
+            className="book-card"
+            data-book-id={book.id}
+            onClick={(event) => onOpen(book, event)}
+          >
+            <BookCover book={book} />
+            <span className="book-card-copy">
+              <span className="category">{book.categories.filter((item) => item !== '보관').map(publicCategoryLabel).join(' · ')}</span>
+              <strong>{book.seriesId && Number.isFinite(book.seriesNumber) ? book.seriesTitle || book.english || book.title : book.english || book.title}</strong>
+              <small className="book-creators">{credits.map((credit, index) => <span key={`${credit}-${index}`}>{credit}</span>)}</small>
+            </span>
+          </button>
+          {soldRightsPosition1BookIds.has(book.id) && <img className="book-rights-note book-rights-note-position-1" data-rights-note-position="1" src={stickyNotePosition1} alt="Sold rights: Starry Cat Village 4" />}
+        </div>;
       })}
     </motion.section> : <motion.p key="empty" className="empty" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : panelTransition}>{hasActiveBooks && selected ? '이 카테고리에 공개된 책이 없습니다' : '현재 공개된 책이 없습니다'}</motion.p>}
   </AnimatePresence>;

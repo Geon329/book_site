@@ -127,7 +127,10 @@ test.describe('book shelf motion', () => {
     const heroImage = hero.locator('.public-hero-image');
     await expect(hero).toBeVisible();
     await expect(hero.getByRole('heading', { name: 'Curated Stories. Worldwide Impact.' })).toBeVisible();
-    await expect(hero.locator('.public-hero-copy > p')).toHaveCount(0);
+    const subtitle = hero.locator('.public-hero-subtitle');
+    await expect(subtitle).toBeVisible();
+    await expect(subtitle).toContainText('The ChoiceMaker Korea');
+    await expect(subtitle).toContainText('2026 Frankfurt BookFair Exhibit Titles');
     await expect(hero.locator('.public-hero-eyebrow')).toHaveCount(0);
     await expect(hero.getByRole('heading')).toContainText('Curated Stories.');
     await expect(hero.getByRole('heading')).toContainText('Worldwide Impact.');
@@ -143,6 +146,7 @@ test.describe('book shelf motion', () => {
     const typography = await page.evaluate(() => {
       const shelf = document.querySelector<HTMLElement>('.public-shelf')!;
       const heading = document.querySelector<HTMLElement>('.public-hero h2')!;
+      const subtitle = document.querySelector<HTMLElement>('.public-hero-subtitle')!;
       const image = document.querySelector<HTMLElement>('.public-hero-image')!;
       const navigation = document.querySelector<HTMLElement>('.public-category-navigation')!;
       const featuredHeading = document.querySelector<HTMLElement>('.public-featured-heading')!;
@@ -157,6 +161,11 @@ test.describe('book shelf motion', () => {
         headingFont: getComputedStyle(heading).fontFamily,
         headingFontSize: getComputedStyle(heading).fontSize,
         headingBreaks: heading.querySelectorAll('br').length,
+        subtitleColor: getComputedStyle(subtitle).color,
+        subtitleFont: getComputedStyle(subtitle).fontFamily,
+        subtitleFontSize: getComputedStyle(subtitle).fontSize,
+        subtitleFontWeight: getComputedStyle(subtitle).fontWeight,
+        subtitleLineHeight: getComputedStyle(subtitle).lineHeight,
         heroHeight: Math.round(hero.getBoundingClientRect().height),
         imageWidth: Math.round(image.getBoundingClientRect().width),
         heroLeft: Math.round(hero.getBoundingClientRect().left),
@@ -180,7 +189,12 @@ test.describe('book shelf motion', () => {
     expect(typography.headingFont).toContain('Cormorant Garamond');
     expect(typography.headingFontSize).toBe('46px');
     expect(typography.headingBreaks).toBe(1);
-    expect(typography.heroHeight).toBe(242);
+    expect(typography.subtitleColor).toBe(typography.headingColor);
+    expect(typography.subtitleFont).toContain('Pretendard');
+    expect(typography.subtitleFontSize).toBe('16px');
+    expect(typography.subtitleFontWeight).toBe('400');
+    expect(typography.subtitleLineHeight).toBe('26px');
+    expect(typography.heroHeight).toBe(260);
     expect(typography.imageWidth).toBe(400);
     expect(typography.heroWidth).toBe(1020);
     expect(typography.heroImageRightOffset).toBeLessThanOrEqual(typography.heroWidth);
@@ -282,6 +296,8 @@ test.describe('book shelf motion', () => {
         titleLineHeight: getComputedStyle(title).lineHeight,
         creatorFontSize: getComputedStyle(creator).fontSize,
         creatorLineHeight: getComputedStyle(creator).lineHeight,
+        creatorParts: creator.children.length,
+        contentFits: card.scrollHeight <= card.clientHeight,
         objectPosition: getComputedStyle(image).objectPosition,
         objectFit: getComputedStyle(image).objectFit,
         naturalWidth: image.naturalWidth,
@@ -294,7 +310,7 @@ test.describe('book shelf motion', () => {
     expect(new Set(layout.map((card) => card.cardWidth)).size).toBe(1);
     for (const card of layout) {
       expect(card.cardWidth).toBe(240);
-      expect(card.cardHeight).toBe(430);
+      expect(card.cardHeight).toBeGreaterThanOrEqual(430);
       expect(card.cardBorder).toBe('1px solid rgb(216, 211, 204)');
       expect(card.cardBorderRadius).toBe('10px');
       expect(card.cardShadow).toBe('rgba(55, 81, 95, 0.08) 0px 4px 12px 0px');
@@ -305,10 +321,30 @@ test.describe('book shelf motion', () => {
       expect(card.titleFontSize).toBe('15px');
       expect(card.titleLineHeight).toBe('18px');
       expect(card.creatorFontSize).toBe('10px');
-      expect(card.creatorLineHeight).toBe('14px');
+      expect(card.creatorLineHeight).toBe('16px');
+      expect(card.creatorParts).toBeGreaterThanOrEqual(2);
+      expect(card.contentFits).toBe(true);
       expect(card.objectFit).toBe('cover');
       expect(card.objectPosition).toBe('50% 50%');
     }
+    await expect(page.locator('.book-rights-note')).toHaveCount(1);
+
+    const position1Note = page.getByRole('img', { name: 'Sold rights: Starry Cat Village 4' });
+    await expect(position1Note).toHaveAttribute('src', /\.svg(?:$|\?)/);
+    const position1Card = page.locator('.book-card[data-book-id="star-cat-village-4"]');
+    const position1Shell = page.locator('.book-card-shell').filter({ has: position1Card });
+    const position1 = await position1Shell.evaluate((shell) => {
+      const card = shell.querySelector<HTMLElement>('.book-card')!.getBoundingClientRect();
+      const note = shell.querySelector<HTMLElement>('[data-rights-note-position="1"]')!.getBoundingClientRect();
+      return {
+        overlapRatio: (card.right - note.left) / note.width,
+        outsideRatio: (note.right - card.right) / note.width,
+      };
+    });
+    expect(position1.overlapRatio).toBeGreaterThan(.55);
+    expect(position1.overlapRatio).toBeLessThan(.8);
+    expect(position1.outsideRatio).toBeGreaterThan(.2);
+    expect(position1.outsideRatio).toBeLessThan(.45);
   });
   test('filters cover risks and persists a manual public presentation override', async ({ page }) => {
     await page.goto('/');
@@ -364,6 +400,8 @@ test.describe('book shelf motion', () => {
       return {
         coverTop: Math.round(cover.getBoundingClientRect().top),
         creatorTop: Math.round(creator.getBoundingClientRect().top),
+        titleBottom: Math.round(title.getBoundingClientRect().bottom),
+        creatorParts: creator.children.length,
         titleMinBlockSize: getComputedStyle(title).minBlockSize,
       };
     }));
@@ -371,8 +409,18 @@ test.describe('book shelf motion', () => {
     expect(new Set(layout.slice(0, 4).map((card) => card.coverTop)).size).toBe(1);
     expect(new Set(layout.slice(4).map((card) => card.coverTop)).size).toBe(1);
     expect(layout[4].coverTop).toBeGreaterThan(layout[0].coverTop);
-    expect(layout[1].creatorTop).toBe(layout[0].creatorTop);
-    expect(layout[0].titleMinBlockSize).toBe('36px');
+    for (const card of layout) {
+      expect(card.creatorTop - card.titleBottom).toBe(6);
+      expect(card.titleMinBlockSize).toBe('auto');
+      expect(card.creatorParts).toBeGreaterThanOrEqual(2);
+    }
+    const longCards = page.locator('[data-book-id="science-explorers-17"], [data-book-id="language-learning-swipe-test-1"]');
+    await expect(longCards).toHaveCount(2);
+    const bottomGaps = await longCards.evaluateAll((cards) => cards.map((card) => {
+      const metadata = card.querySelector<HTMLElement>('.book-creators')!;
+      return Math.round(card.getBoundingClientRect().bottom - metadata.getBoundingClientRect().bottom);
+    }));
+    for (const gap of bottomGaps) expect(gap).toBeGreaterThanOrEqual(12);
   });
   test('shows covers without a separate image animation or geometry change', async ({ page }) => {
     await page.goto('/');
