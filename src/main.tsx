@@ -7,6 +7,8 @@ import { StickyToc, type StickyTocOption } from './components/StickyToc';
 import choiceMakerLogo from '../logo_02.svg';
 import editorialHero from '../item_01.png';
 import stickyNotePosition1 from '../note_Combine_8.png';
+import awardIcon from '../award-outline.png';
+import moonFogIcon from '../moon-fog-outline.png';
 
 type CoverFit = 'auto' | 'cover' | 'contain';
 type CoverStatus = 'loading' | 'safe' | 'review' | 'exception' | 'unavailable';
@@ -25,7 +27,7 @@ type RecommendedAudience = {
   confidence: 'high' | 'medium' | 'unavailable';
   note?: string;
 };
-type Book = { id: string; title: string; english: string; author: string; illustrator: string; publisher?: string; categories: string[]; cover: string; coverFit?: CoverFit; intro?: string; introSource?: 'YES24_PARAPHRASE' | 'ADMIN'; awards?: string; isbn?: string; specs?: string; keywords?: string; publishedAt?: string; listPrice?: number; yes24Url?: string; recommendedAudience?: RecommendedAudience; seriesId?: string; seriesTitle?: string; seriesNumber?: number };
+type Book = { id: string; title: string; english: string; author: string; illustrator: string; publisher?: string; categories: string[]; cover: string; coverFit?: CoverFit; intro?: string; introSource?: 'YES24_PARAPHRASE' | 'ADMIN'; awards?: string[]; rightsSold?: string[]; isbn?: string; specs?: string; keywords?: string; publishedAt?: string; listPrice?: number; yes24Url?: string; recommendedAudience?: RecommendedAudience; seriesId?: string; seriesTitle?: string; seriesNumber?: number };
 type Store = { books: Book[]; categories: string[]; catalogVersion: number };
 type CatalogState = { store: Store; selectedCategories: string[] };
 type DetailAudience = 'public' | 'management';
@@ -38,7 +40,7 @@ type TopLayer = { kind: 'detail'; detail: DetailState } | { kind: 'confirm'; con
 type Announcement = { sequence: number; text: string };
 
 const storageKey = 'book-margin-demo-v2';
-const catalogVersion = 4;
+const catalogVersion = 5;
 const schemaVersion = 1;
 const adminDemoEnabled = import.meta.env.DEV;
 const publicCategoryLabels: Readonly<Record<string, string>> = {
@@ -126,11 +128,17 @@ function migrateSeedContent(book: Book, loadedVersion: number): Book {
   if (loadedVersion < catalogVersion && seed?.intro && book.introSource !== 'ADMIN') return { ...book, intro: seed.intro, introSource: seed.introSource };
   return book;
 }
+function normalizeStringList(value: unknown): string[] {
+  const entries = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
+  return [...new Set(entries.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter((item) => item !== '' && item !== '없음'))];
+}
 function normalizeBook(book: Book, categories: string[]): Book {
   const safeCategories = Array.isArray(book.categories) ? [...new Set(book.categories.filter((item) => categories.includes(item)))] : [];
   const hasStaticCover = typeof book.cover === 'string' && /^(?:[a-z0-9][a-z0-9_-]*\/)*[a-z0-9][a-z0-9._-]*\.(?:avif|webp|png|jpe?g)$/i.test(book.cover);
   const cover = typeof book.cover === 'string' && (book.cover.startsWith('data:image/svg+xml') || book.cover.startsWith('https://image.yes24.com/goods/') || hasStaticCover) ? book.cover : makeCover(book.title || '책');
   const normalized: Book = { ...book, categories: safeCategories, cover };
+  normalized.awards = normalizeStringList((book as Book & { awards?: unknown }).awards);
+  normalized.rightsSold = normalizeStringList((book as Book & { rightsSold?: unknown }).rightsSold);
   if (normalizeCoverFit(book.coverFit) === 'auto') delete normalized.coverFit;
   else normalized.coverFit = normalizeCoverFit(book.coverFit);
   if (typeof book.seriesId === 'string' && book.seriesId.trim()) normalized.seriesId = book.seriesId.trim();
@@ -190,7 +198,7 @@ function loadStore(): Store {
     return initial;
   }
 }
-const copy = (book: Book): Book => ({ ...book, categories: [...book.categories] });
+const copy = (book: Book): Book => ({ ...book, categories: [...book.categories], awards: [...(book.awards ?? [])], rightsSold: [...(book.rightsSold ?? [])] });
 const focusable = (root: HTMLElement | null) => root ? [...root.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter((node) => !node.closest('[inert]') && !!(node.offsetWidth || node.offsetHeight || node.getClientRects().length)) : [];
 
 function ModalInteractionCoordinator(active: boolean, root: React.RefObject<HTMLElement | null>, initial: React.RefObject<HTMLElement | null>, onEscape: () => void, returnTo: () => HTMLElement | null) {
@@ -407,7 +415,7 @@ function PublicHero() {
     <div className="public-hero-copy">
       <motion.h2 id="public-hero-heading" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} transition={reduceMotion ? undefined : headingTransition}>Curated Stories.<br />Worldwide Impact.</motion.h2>
       <p className="public-hero-subtitle">The ChoiceMaker Korea<br />2026 Frankfurt BookFair Exhibit Titles</p>
-      <a className="public-hero-cta" href="#featured-titles">Explore Our Collection <span aria-hidden="true">→</span></a>
+      <a className="public-hero-cta" href="#featured-titles">Explore Our Portfolio <span aria-hidden="true">→</span></a>
     </div>
     <img className="public-hero-image" src={editorialHero} alt="The ChoiceMaker Korea의 어린이 책 컬렉션" />
   </section>;
@@ -442,7 +450,27 @@ function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; 
 }
 function BookCover({ book }: { book: Book }) {
   useCoverAnalysis(book.cover);
-  return <span className="cover-frame"><img className="book-cover" src={book.cover} alt="" loading="lazy" style={{ objectFit: resolvedCoverFit(book) }} /></span>;
+  const awards = book.awards ?? [];
+  const rightsSold = book.rightsSold ?? [];
+  const hasMetadata = awards.length > 0 || rightsSold.length > 0;
+  return <span className="cover-frame">
+    <img className="book-cover" src={book.cover} alt="" loading="lazy" style={{ objectFit: resolvedCoverFit(book) }} />
+    <span className="book-card-overlay" aria-hidden="true">
+      {!hasMetadata ? <img className="book-overlay-empty-icon" src={moonFogIcon} alt="" /> : <>
+        {awards.length > 0 && <>
+          <span className="book-overlay-award-icons">{awards.map((award, index) => <img key={`${award}-${index}`} className="book-overlay-award-icon" src={awardIcon} alt="" />)}</span>
+          <span className="book-overlay-section">
+            <span className="book-overlay-heading">수상목록</span>
+            <span className="book-overlay-list">{awards.map((award) => <span key={award}>- {award}</span>)}</span>
+          </span>
+        </>}
+        {rightsSold.length > 0 && <span className="book-overlay-rights">
+          <span className="book-overlay-heading">Rights Sold</span>
+          <span className="book-overlay-list">{rightsSold.map((language) => <span key={language}>- {language}</span>)}</span>
+        </span>}
+      </>}
+    </span>
+  </span>;
 }
 
 function ManagementWorkspace({ store, heading, onReturn, onOpen, onNew, onImport, onExport, onCreateCategory, onRename, onDeleteCategory, onDeleteBook }: { store: Store; heading: React.RefObject<HTMLHeadingElement | null>; onReturn: () => void; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; onNew: (event: React.MouseEvent<HTMLButtonElement>) => void; onImport: (file: File) => void; onExport: () => void; onCreateCategory: (name: string) => boolean; onRename: (from: string, to: string) => boolean; onDeleteCategory: (category: string, event: React.MouseEvent<HTMLButtonElement>) => void; onDeleteBook: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void }) {
@@ -500,7 +528,7 @@ function BookDetailDialog({ detail, store, categories, updateBook, updateBookCat
   const reduceMotion = useReducedMotion() ?? false;
   const [local, setLocal] = useState<DetailState>(() => {
     if (detail.identity.kind !== 'create') return detail;
-    const draft = { id: crypto.randomUUID(), title: '새 책', english: 'New Book', author: '', illustrator: '', categories: [], cover: makeCover('새 책'), introSource: 'ADMIN' as const };
+    const draft: Book = { id: crypto.randomUUID(), title: '새 책', english: 'New Book', author: '', illustrator: '', categories: [], cover: makeCover('새 책'), introSource: 'ADMIN', awards: [], rightsSold: [] };
     return { ...detail, phase: 'edit', baseline: copy(draft), draft };
   });
   const [status, announce] = useAnnouncer();
@@ -757,6 +785,7 @@ function ReadView({ book, titleId, seriesBooks, seriesIndex, onChangeSeriesVolum
   const publication = [
     ['출판사', book.publisher],
     ['추천 독자', book.recommendedAudience?.label],
+    ['키워드', book.keywords],
     ['발행일', book.publishedAt],
     ['정가', book.listPrice ? `${book.listPrice.toLocaleString('ko-KR')}원` : undefined],
     ['ISBN', book.isbn],
@@ -784,9 +813,9 @@ function ReadView({ book, titleId, seriesBooks, seriesIndex, onChangeSeriesVolum
       </div>
     </div>
     {publication.length > 0 && <section className="detail-fact-group detail-publication detail-publication-section"><h3>책 정보</h3><dl>{publication.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>}
-    {(book.keywords || (book.awards && book.awards !== '없음') || book.yes24Url || series) && <div className="detail-support">
-      {book.keywords && <section><h3>키워드</h3><p>{book.keywords}</p></section>}
-      {book.awards && book.awards !== '없음' && <section><h3>수상 및 추천</h3><p>{book.awards}</p></section>}
+    {((book.rightsSold?.length ?? 0) > 0 || (book.awards?.length ?? 0) > 0 || book.yes24Url || series) && <div className="detail-support">
+      {(book.rightsSold?.length ?? 0) > 0 && <section className="rights-sold-section"><h3>Rights Sold</h3><ul className="detail-metadata-list">{book.rightsSold!.map((language) => <li key={language}>{language}</li>)}</ul></section>}
+      {(book.awards?.length ?? 0) > 0 && <section><h3>수상 및 추천</h3><ul className="detail-metadata-list">{book.awards!.map((award) => <li key={award}>{award}</li>)}</ul></section>}
       {series && <SeriesVolumeSlider seriesBooks={seriesBooks} seriesIndex={seriesIndex} onChangeSeriesVolume={onChangeSeriesVolume} />}
       {book.yes24Url && <section className="source-section"><a href={book.yes24Url} target="_blank" rel="noreferrer">예스24에서 상세 정보 보기 ↗</a></section>}
     </div>}
@@ -940,7 +969,20 @@ function SeriesVolumeSlider({ seriesBooks, seriesIndex, onChangeSeriesVolume }: 
     </div>
   </section>;
 }
-function EditView({ titleId, book, categories, setDraft, save, discard, canManageLifecycle, requestLifecycle, lifecycleLabel }: { titleId: string; book: Book; categories: string[]; setDraft: (field: keyof Book, value: string | string[]) => void; save: () => void; discard: () => void; canManageLifecycle: boolean; requestLifecycle: () => void; lifecycleLabel: string }) { const fields: (keyof Book)[] = ['title', 'english', 'author', 'illustrator', 'cover', 'intro', 'awards', 'isbn', 'specs', 'keywords']; return <form className="editor" onSubmit={(event) => { event.preventDefault(); save(); }}><h2 id={titleId}>책 편집</h2>{fields.map((field) => <label key={field}>{field}<textarea value={typeof book[field] === 'string' ? book[field] as string : ''} onChange={(event) => setDraft(field, event.target.value)} /></label>)}<label className="cover-fit-select">표지 표시 방식<select value={normalizeCoverFit(book.coverFit)} onChange={(event) => setDraft('coverFit', event.target.value)}><option value="auto">자동</option><option value="cover">채우기 (cover)</option><option value="contain">맞춤 (contain)</option></select><small>자동은 프레임을 채우며, 검토·예외 상태는 여기서 표시 방식을 조정합니다.</small></label><fieldset><legend>카테고리</legend>{categories.filter((item) => item !== '보관').map((category) => <label key={category}><input type="checkbox" checked={book.categories.includes(category)} onChange={() => setDraft('categories', book.categories.includes(category) ? book.categories.filter((item) => item !== category) : [...book.categories, category])} />{publicCategoryLabel(category)}</label>)}</fieldset><button>저장</button><button type="button" onClick={discard}>변경 취소</button>{canManageLifecycle && <button type="button" onClick={requestLifecycle}>{lifecycleLabel}</button>}</form>; }
+function EditView({ titleId, book, categories, setDraft, save, discard, canManageLifecycle, requestLifecycle, lifecycleLabel }: { titleId: string; book: Book; categories: string[]; setDraft: (field: keyof Book, value: string | string[]) => void; save: () => void; discard: () => void; canManageLifecycle: boolean; requestLifecycle: () => void; lifecycleLabel: string }) {
+  const fields: (keyof Book)[] = ['title', 'english', 'author', 'illustrator', 'cover', 'intro', 'awards', 'rightsSold', 'isbn', 'specs', 'keywords'];
+  const listFields = new Set<keyof Book>(['awards', 'rightsSold']);
+  return <form className="editor" onSubmit={(event) => { event.preventDefault(); save(); }}>
+    <h2 id={titleId}>책 편집</h2>
+    {fields.map((field) => {
+      const value = book[field];
+      return <label key={field}>{field}<textarea value={Array.isArray(value) ? value.join('\n') : typeof value === 'string' ? value : ''} onChange={(event) => setDraft(field, listFields.has(field) ? event.target.value.split('\n') : event.target.value)} /></label>;
+    })}
+    <label className="cover-fit-select">표지 표시 방식<select value={normalizeCoverFit(book.coverFit)} onChange={(event) => setDraft('coverFit', event.target.value)}><option value="auto">자동</option><option value="cover">채우기 (cover)</option><option value="contain">맞춤 (contain)</option></select><small>자동은 프레임을 채우며, 검토·예외 상태는 여기서 표시 방식을 조정합니다.</small></label>
+    <fieldset><legend>카테고리</legend>{categories.filter((item) => item !== '보관').map((category) => <label key={category}><input type="checkbox" checked={book.categories.includes(category)} onChange={() => setDraft('categories', book.categories.includes(category) ? book.categories.filter((item) => item !== category) : [...book.categories, category])} />{publicCategoryLabel(category)}</label>)}</fieldset>
+    <button>저장</button><button type="button" onClick={discard}>변경 취소</button>{canManageLifecycle && <button type="button" onClick={requestLifecycle}>{lifecycleLabel}</button>}
+  </form>;
+}
 function Confirm({ state, close }: { state: ConfirmState; close: () => void }) {
   const root = useRef<HTMLDivElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);

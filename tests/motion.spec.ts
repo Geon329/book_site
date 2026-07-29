@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 
 const importedCatalog = {
   schemaVersion: 1,
-  catalogVersion: 4,
+  catalogVersion: 5,
   categories: ['가져오기 테스트', '보관'],
   books: [{
     id: 'catalog-imported-book',
@@ -15,6 +15,8 @@ const importedCatalog = {
     publisher: '테스트 출판사',
     categories: ['가져오기 테스트'],
     cover: 'data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%2F%3E',
+    awards: [],
+    rightsSold: [],
   }],
 };
 
@@ -286,6 +288,90 @@ test.describe('book shelf motion', () => {
     await expect(audienceFact).toContainText('Middle Grade · 초등 3~6학년 (만 9~12세)');
   });
 
+  test('reveals award and rights metadata over covers and moves it into book details', async ({ page }) => {
+    const catalog = JSON.parse(await readFile('src/books.json', 'utf8')) as {
+      books: Array<{ id: string; awards?: unknown; rightsSold?: unknown }>;
+    };
+    expect(catalog.books.every((book) => Array.isArray(book.awards) && Array.isArray(book.rightsSold))).toBe(true);
+    expect(catalog.books.filter((book) => !book.id.startsWith('language-learning-swipe-test')).every((book) => (book.rightsSold as unknown[]).length === 0)).toBe(true);
+    expect(catalog.books.filter((book) => book.id.startsWith('language-learning-swipe-test')).every((book) => (book.awards as unknown[]).length > 0 && (book.rightsSold as unknown[]).length > 0)).toBe(true);
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/');
+
+    const emptyCard = page.locator('.book-card[data-book-id="sticker"]');
+    const emptyOverlay = emptyCard.locator('.book-card-overlay');
+    await expect(emptyOverlay).toHaveCSS('opacity', '0');
+    await expect(emptyOverlay).toHaveCSS('visibility', 'hidden');
+    await expect(emptyOverlay.locator('.book-overlay-empty-icon')).toHaveCount(1);
+    await expect(emptyOverlay.locator('.book-overlay-award-icon, .book-overlay-section, .book-overlay-rights')).toHaveCount(0);
+    await emptyCard.hover();
+    await expect(emptyOverlay).toHaveCSS('opacity', '1');
+    await expect(emptyOverlay).toHaveCSS('visibility', 'visible');
+
+    const awardedCard = page.locator('.book-card[data-book-id="huntergirl-1"]');
+    await awardedCard.hover();
+    await expect(awardedCard.locator('.book-overlay-award-icon')).toHaveCount(1);
+    await expect(awardedCard.locator('.book-overlay-section')).toContainText('한겨레 미디어 추천');
+    await expect(awardedCard.locator('.book-overlay-rights')).toHaveCount(0);
+
+    const rightsCard = page.locator('.book-card[data-book-id="star-cat-village-4"]');
+    const rightsShell = page.locator('.book-card-shell').filter({ has: rightsCard });
+    await rightsCard.hover();
+    const rightsStacking = await rightsShell.evaluate((shell) => {
+      const note = shell.querySelector<HTMLElement>('.book-rights-note')!;
+      const overlay = shell.querySelector<HTMLElement>('.book-card-overlay')!;
+      const noteRect = note.getBoundingClientRect();
+      const overlayRect = overlay.getBoundingClientRect();
+      return {
+        noteLayer: Number.parseInt(getComputedStyle(note).zIndex, 10),
+        overlayLayer: Number.parseInt(getComputedStyle(overlay).zIndex, 10),
+        overlaps: noteRect.left < overlayRect.right && noteRect.right > overlayRect.left && noteRect.top < overlayRect.bottom && noteRect.bottom > overlayRect.top,
+      };
+    });
+    expect(rightsStacking.overlaps).toBe(true);
+    expect(rightsStacking.overlayLayer).toBeGreaterThan(rightsStacking.noteLayer);
+
+    await page.getByRole('button', { name: 'Language Learning', exact: true }).click();
+    const metadataCard = page.locator('.book-card[data-book-id="language-learning-swipe-test-1"]');
+    await expect(metadataCard).toBeVisible();
+    const metadataOverlay = metadataCard.locator('.book-card-overlay');
+    await metadataCard.hover();
+    await expect(metadataOverlay.locator('.book-overlay-award-icon')).toHaveCount(3);
+    await expect(metadataOverlay.locator('.book-overlay-rights')).toContainText('Rights Sold');
+    await expect(metadataOverlay.locator('.book-overlay-rights')).toContainText('Korean');
+    await expect(metadataOverlay.locator('.book-overlay-rights')).toContainText('Complex Chinese');
+    const overlayGeometry = await metadataCard.evaluate((card) => {
+      const cover = card.querySelector<HTMLElement>('.cover-frame')!.getBoundingClientRect();
+      const overlay = card.querySelector<HTMLElement>('.book-card-overlay')!.getBoundingClientRect();
+      return {
+        sameBounds: Math.round(cover.width) === Math.round(overlay.width) && Math.round(cover.height) === Math.round(overlay.height),
+        transition: getComputedStyle(card.querySelector<HTMLElement>('.book-card-overlay')!).transition,
+      };
+    });
+    expect(overlayGeometry.sameBounds).toBe(true);
+    expect(overlayGeometry.transition).toContain('opacity 0.3s');
+
+    await page.mouse.move(0, 0);
+    await metadataCard.focus();
+    await expect(metadataOverlay).toHaveCSS('opacity', '1');
+    await metadataCard.click();
+
+    const dialog = page.getByRole('dialog');
+    const keywordFact = dialog.locator('.detail-publication div').filter({ hasText: '키워드' });
+    await expect(keywordFact).toContainText('언어 학습, 낱말 탐색, 종이비행기, 테스트 시리즈');
+    await expect(dialog.getByRole('heading', { name: '키워드', exact: true })).toHaveCount(0);
+    const rightsSection = dialog.locator('.rights-sold-section');
+    await expect(rightsSection.getByRole('heading', { name: 'Rights Sold', exact: true })).toBeVisible();
+    await expect(rightsSection.locator('li')).toHaveText(['Korean', 'Japanese', 'Complex Chinese', 'English']);
+    await expect(dialog.getByRole('heading', { name: '수상 및 추천', exact: true })).toBeVisible();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Language Learning', exact: true }).click();
+    await expect(page.locator('.book-card-overlay').first()).toHaveCSS('display', 'none');
+  });
+
   test('uses the local editorial hero image, copy, CTA, and typography tokens', async ({ page }) => {
     const requests: string[] = [];
     page.on('request', (request) => requests.push(request.url()));
@@ -307,7 +393,7 @@ test.describe('book shelf motion', () => {
     await expect(heroImage).toHaveAttribute('src', /\.png(?:$|\?)/);
 
     const cta = hero.locator('.public-hero-cta');
-    await expect(cta).toHaveText('Explore Our Collection →');
+    await expect(cta).toHaveText('Explore Our Portfolio →');
     await expect(cta).toHaveAttribute('href', '#featured-titles');
     await cta.click();
     await expect(page.locator('#featured-titles.public-featured')).toBeInViewport();
@@ -335,6 +421,10 @@ test.describe('book shelf motion', () => {
         subtitleFontSize: getComputedStyle(subtitle).fontSize,
         subtitleFontWeight: getComputedStyle(subtitle).fontWeight,
         subtitleLineHeight: getComputedStyle(subtitle).lineHeight,
+        categoryToHeadingGap: Math.round(heading.getBoundingClientRect().top - navigation.getBoundingClientRect().bottom),
+        headingToSubtitleGap: Math.round(subtitle.getBoundingClientRect().top - heading.getBoundingClientRect().bottom),
+        categoryToImageGap: Math.round(image.getBoundingClientRect().top - navigation.getBoundingClientRect().bottom),
+        illustrationAlignedWithHeading: Math.round(image.getBoundingClientRect().top) === Math.round(heading.getBoundingClientRect().top),
         heroHeight: Math.round(hero.getBoundingClientRect().height),
         imageWidth: Math.round(image.getBoundingClientRect().width),
         heroLeft: Math.round(hero.getBoundingClientRect().left),
@@ -363,7 +453,11 @@ test.describe('book shelf motion', () => {
     expect(typography.subtitleFontSize).toBe('16px');
     expect(typography.subtitleFontWeight).toBe('400');
     expect(typography.subtitleLineHeight).toBe('26px');
-    expect(typography.heroHeight).toBe(260);
+    expect(typography.heroHeight).toBe(296);
+    expect(typography.categoryToHeadingGap).toBe(56);
+    expect(typography.headingToSubtitleGap).toBe(24);
+    expect(typography.categoryToImageGap).toBe(56);
+    expect(typography.illustrationAlignedWithHeading).toBe(true);
     expect(typography.imageWidth).toBe(400);
     expect(typography.heroWidth).toBe(1020);
     expect(typography.heroImageRightOffset).toBeLessThanOrEqual(typography.heroWidth);
@@ -657,7 +751,7 @@ test.describe('book shelf motion', () => {
     expect(layout.overflowX).toBe(false);
     expect(layout.creditCount).toBe(2);
     expect(layout.publicationColumns).toBe(2);
-    expect(layout.publicationCount).toBe(6);
+    expect(layout.publicationCount).toBe(7);
     expect(layout.isbnHeight).toBeLessThanOrEqual(16);
     expect(layout.titleFits).toBe(true);
     expect(layout.titleWhiteSpace).toBe('normal');
@@ -870,7 +964,7 @@ test.describe('book shelf motion', () => {
     const exportPath = await download.path();
     expect(exportPath).not.toBeNull();
     const exportedCatalog = JSON.parse(await readFile(exportPath!, 'utf8'));
-    expect(exportedCatalog).toMatchObject({ schemaVersion: 1, catalogVersion: 4 });
+    expect(exportedCatalog).toMatchObject({ schemaVersion: 1, catalogVersion: 5 });
     expect(exportedCatalog.books).toHaveLength(17);
     expect(exportedCatalog.books).toContainEqual(importedCatalog.books[0]);
     await expect.poll(() => page.evaluate(() => Object.values(localStorage).some((value) => {
