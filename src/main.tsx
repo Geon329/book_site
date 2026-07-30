@@ -398,7 +398,7 @@ function App() {
   return <>
     <div id="app-shell">
       {surface === 'public' ? (
-        <main id="top" className="public-shelf">
+        <main id="top" className={`public-shelf${selectedCategory ? ' public-shelf-category' : ''}`}>
           <PageFrame>
             <PublicHeader heading={publicHeading} categories={store.categories} selected={selected} toggle={togglePublicCategory} onOpenManagement={() => setSurface('management')} />
             {publicPage === 'portfolio'
