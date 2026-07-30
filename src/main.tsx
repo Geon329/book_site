@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import './styles.css';
 import booksData from './books.json';
 import { StickyToc, type StickyTocOption } from './components/StickyToc';
+import { SHELF_PANEL_FADE_DURATION_SECONDS } from './motion';
 import choiceMakerLogo from '../logo_02.svg';
 import editorialHero from '../item_01.png';
 import stickyNotePosition1 from '../note_Combine_8.png';
@@ -423,7 +424,7 @@ function PublicHero() {
 function ShelfControls({ categories, selected, toggle }: { categories: string[]; selected: string[]; toggle: (category: string) => void }) { return <div className="filters" role="group" aria-label="카테고리 필터">{categories.filter((category) => category !== '보관').map((category) => { const active = selected.includes(category); return <button key={category} className={active ? 'active' : ''} aria-pressed={active} onClick={() => toggle(category)}>{publicCategoryLabel(category)}</button>; })}</div>; }
 function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; selected: boolean; hasActiveBooks: boolean }) {
   const reduceMotion = useReducedMotion() ?? false;
-  const panelTransition = { duration: 0.28, ease: 'easeOut' as const };
+  const panelTransition = { duration: SHELF_PANEL_FADE_DURATION_SECONDS, ease: 'easeOut' as const };
   const booksKey = books.map((book) => book.id).join(',');
   return <AnimatePresence initial={false} mode="wait">
     {books.length ? <motion.section key={`books:${booksKey}`} className="grid" aria-label="책 목록" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : panelTransition}>

@@ -119,13 +119,50 @@ test.describe('book shelf motion', () => {
     await expect(toc.locator('h2')).toHaveCount(0);
     const options = toc.getByRole('button');
     await expect(options).toHaveText(['All', 'Early Readers', 'Middle Grade', 'Young Adult']);
-    await expect(toc.getByRole('button', { name: 'All', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    const initialActiveOption = toc.getByRole('button', { name: 'All', exact: true });
+    await expect(initialActiveOption).toHaveAttribute('aria-pressed', 'true');
+    await expect(initialActiveOption.locator('svg.rough-annotation path')).toHaveCount(1);
+    await expect(initialActiveOption).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expect.poll(() => initialActiveOption.locator('svg.rough-annotation path').evaluate(
+      (path) => Number.parseFloat(getComputedStyle(path).strokeDashoffset),
+    )).toBe(0);
     await expect(toc).not.toContainText(/총\s*\d+권/);
     await expect(toc).toHaveCSS('position', 'sticky');
     await expect(toc).toHaveCSS('top', '16px');
     await expect(page.locator('.book-card')).toHaveCount(5, { timeout: 10_000 });
 
-    await toc.getByRole('button', { name: 'Middle Grade', exact: true }).click();
+    const middleGrade = toc.getByRole('button', { name: 'Middle Grade', exact: true });
+    await middleGrade.click();
+    await expect(middleGrade.locator('svg.rough-annotation')).toHaveCount(1);
+    const highlight = await middleGrade.evaluate((button) => {
+      const svg = button.querySelector<SVGSVGElement>('svg.rough-annotation')!;
+      const target = button.querySelector<HTMLElement>('.sticky-toc-highlight-target')!;
+      const paths = Array.from(svg.querySelectorAll<SVGPathElement>('path'));
+      const path = paths[0]!;
+      return {
+        pathCount: paths.length,
+        direction: path.getPointAtLength(0).x < path.getPointAtLength(path.getTotalLength()).x,
+        stroke: getComputedStyle(path).stroke,
+        strokeWidth: Number.parseFloat(getComputedStyle(path).strokeWidth),
+        dashArray: getComputedStyle(path).strokeDasharray,
+        animationDuration: Number.parseFloat(getComputedStyle(path).animationDuration),
+        shelfFadeDuration: Number(document.querySelector<HTMLElement>('.grid')?.getAnimations()[0]?.effect?.getTiming().duration),
+        animationName: getComputedStyle(path).animationName,
+        svgBeforeTarget: svg.nextElementSibling === target,
+        maskCount: button.querySelectorAll('mask, filter, image').length,
+      };
+    });
+    expect(highlight.pathCount).toBe(1);
+    expect(highlight.direction).toBe(true);
+    expect(highlight.stroke).toBe('rgb(55, 81, 95)');
+    expect(highlight.strokeWidth).toBeGreaterThan(50);
+    expect(highlight.dashArray).not.toBe('none');
+    expect(highlight.animationDuration).toBe(.56);
+    expect(highlight.animationDuration * 1_000).toBe(highlight.shelfFadeDuration * 2);
+    expect(highlight.animationName).toBe('rough-notation-dash');
+    expect(highlight.svgBeforeTarget).toBe(true);
+    expect(highlight.maskCount).toBe(0);
+    await expect(middleGrade).toHaveCSS('color', 'rgb(255, 255, 255)');
     await expect(page.locator('.book-card')).toHaveCount(2, { timeout: 10_000 });
     expect(await page.locator('.book-card').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-book-id')))).toEqual(['huntergirl-1', 'on-the-ball-1']);
 
@@ -161,7 +198,6 @@ test.describe('book shelf motion', () => {
         },
         activeHeight: Math.round(active.getBoundingClientRect().height),
         activeBackground: getComputedStyle(active).backgroundColor,
-        activeLine: getComputedStyle(active, '::before').backgroundColor,
         contentGap: Math.round(firstCards[0]!.getBoundingClientRect().left - panelRect.right),
         firstCardLeft: Math.round(firstCards[0]!.getBoundingClientRect().left),
         expectedRailLeft: Math.round((window.innerWidth - 1020) / 2),
@@ -176,8 +212,7 @@ test.describe('book shelf motion', () => {
     expect(tocLayout.panelBackground).toBe('rgb(240, 238, 233)');
     expect(tocLayout.tocTypography).toEqual(tocLayout.categoryTypography);
     expect(tocLayout.activeHeight).toBe(60);
-    expect(tocLayout.activeBackground).toBe('rgb(231, 229, 224)');
-    expect(tocLayout.activeLine).toBe('rgb(47, 113, 140)');
+    expect(tocLayout.activeBackground).toBe('rgba(0, 0, 0, 0)');
     expect(tocLayout.contentGap).toBe(24);
     expect(tocLayout.firstCardLeft).toBe(tocLayout.expectedRailLeft);
     expect(new Set(tocLayout.cardTops).size).toBe(1);
