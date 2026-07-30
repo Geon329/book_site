@@ -169,6 +169,10 @@
     "introSource": "YES24_PARAPHRASE",
     "awards": [],
     "rightsSold": [],
+    "stickyNote": {
+      "kind": "sold",
+      "position": "top-right"
+    },
     "isbn": "9788943318512",
     "specs": "40쪽 · 376g · 246×232×10mm",
     "keywords": "사소한 행복, 그림책, 위로",
@@ -200,6 +204,10 @@
     "introSource": "YES24_PARAPHRASE",
     "awards": [],
     "rightsSold": [],
+    "stickyNote": {
+      "kind": "sold-awards",
+      "position": "top-right"
+    },
     "isbn": "9791130674063",
     "specs": "140쪽 · 408g · 159×217×15mm",
     "keywords": "모험 동화, 우정, 고양이",
@@ -230,6 +238,10 @@
     "introSource": "YES24_PARAPHRASE",
     "awards": [],
     "rightsSold": [],
+    "stickyNote": {
+      "kind": "awards",
+      "position": "top-right"
+    },
     "isbn": "9791169814232",
     "specs": "44쪽 · 180×205×15mm",
     "keywords": "고양이, 위로, 일상",

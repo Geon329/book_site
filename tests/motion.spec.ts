@@ -82,7 +82,7 @@ test.describe('book shelf motion', () => {
     await expect(page.getByRole('link', { name: /View all titles/ })).toHaveCount(0);
     await expect.poll(() => page.locator('.book-card').count()).toBeGreaterThan(0);
     await expect.poll(() => page.locator('.book-card').count()).toBeLessThan(initialCount);
-    expect(await page.locator('.book-cover').evaluateAll((covers) => covers.every((cover) => cover.getAnimations().length === 0))).toBe(true);
+    expect(await page.locator('.grid').evaluate((grid) => grid.getAnimations().length)).toBe(0);
     const filteredViewport = await page.evaluate(() => ({
       clientWidth: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
@@ -146,7 +146,7 @@ test.describe('book shelf motion', () => {
         strokeWidth: Number.parseFloat(getComputedStyle(path).strokeWidth),
         dashArray: getComputedStyle(path).strokeDasharray,
         animationDuration: Number.parseFloat(getComputedStyle(path).animationDuration),
-        shelfFadeDuration: Number(document.querySelector<HTMLElement>('.grid')?.getAnimations()[0]?.effect?.getTiming().duration),
+        shelfAnimationCount: document.querySelector<HTMLElement>('.grid')?.getAnimations().length,
         animationName: getComputedStyle(path).animationName,
         svgBeforeTarget: svg.nextElementSibling === target,
         maskCount: button.querySelectorAll('mask, filter, image').length,
@@ -158,7 +158,7 @@ test.describe('book shelf motion', () => {
     expect(highlight.strokeWidth).toBeGreaterThan(50);
     expect(highlight.dashArray).not.toBe('none');
     expect(highlight.animationDuration).toBe(.56);
-    expect(highlight.animationDuration * 1_000).toBe(highlight.shelfFadeDuration * 2);
+    expect(highlight.shelfAnimationCount).toBe(0);
     expect(highlight.animationName).toBe('rough-notation-dash');
     expect(highlight.svgBeforeTarget).toBe(true);
     expect(highlight.maskCount).toBe(0);
@@ -229,34 +229,22 @@ test.describe('book shelf motion', () => {
     await expect(page.locator('.book-card')).toHaveCount(5, { timeout: 10_000 });
   });
 
-  test('preserves the shelf fade when crossing the Fiction TOC boundary', async ({ page }) => {
+  test('switches the shelf instantly when crossing the Fiction TOC boundary', async ({ page }) => {
     await page.goto('/');
 
-    const sampleTransition = (label: string) => page.evaluate(async (categoryLabel) => {
-      const button = Array.from(document.querySelectorAll<HTMLButtonElement>('.public-category-navigation button')).find((item) => item.textContent?.trim() === categoryLabel)!;
-      const samples: number[] = [];
-      const startedAt = performance.now();
-      button.click();
-      while (performance.now() - startedAt < 650) {
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-        for (const grid of document.querySelectorAll<HTMLElement>('.grid')) samples.push(Number.parseFloat(getComputedStyle(grid).opacity));
-      }
-      return samples;
-    }, label);
-
-    const enteringFiction = await sampleTransition('Fictions');
-    expect(enteringFiction.some((opacity) => opacity > 0 && opacity < 1)).toBe(true);
+    await page.getByRole('button', { name: 'Fictions', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Fictions', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.book-card')).toHaveCount(5);
+    expect(await page.locator('.grid').evaluate((grid) => grid.getAnimations().length)).toBe(0);
     const fictionGeometry = await page.evaluate(() => ({
       headingTop: Math.round(document.querySelector<HTMLElement>('.public-featured-heading')!.getBoundingClientRect().top),
       cardTop: Math.round(document.querySelector<HTMLElement>('.book-card')!.getBoundingClientRect().top),
     }));
 
-    const leavingFiction = await sampleTransition('Picture Books');
-    expect(leavingFiction.some((opacity) => opacity > 0 && opacity < 1)).toBe(true);
+    await page.getByRole('button', { name: 'Picture Books', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Picture Books', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.book-card')).toHaveCount(5);
+    expect(await page.locator('.grid').evaluate((grid) => grid.getAnimations().length)).toBe(0);
     const pictureBookGeometry = await page.evaluate(() => ({
       headingTop: Math.round(document.querySelector<HTMLElement>('.public-featured-heading')!.getBoundingClientRect().top),
       cardTop: Math.round(document.querySelector<HTMLElement>('.book-card')!.getBoundingClientRect().top),
@@ -354,7 +342,7 @@ test.describe('book shelf motion', () => {
     const rightsShell = page.locator('.book-card-shell').filter({ has: rightsCard });
     await rightsCard.hover();
     const rightsStacking = await rightsShell.evaluate((shell) => {
-      const note = shell.querySelector<HTMLElement>('.book-rights-note')!;
+      const note = shell.querySelector<HTMLElement>('.book-sticky-note')!;
       const overlay = shell.querySelector<HTMLElement>('.book-card-overlay')!;
       const noteRect = note.getBoundingClientRect();
       const overlayRect = overlay.getBoundingClientRect();
@@ -625,24 +613,89 @@ test.describe('book shelf motion', () => {
       expect(card.objectFit).toBe('cover');
       expect(card.objectPosition).toBe('50% 50%');
     }
-    await expect(page.locator('.book-rights-note')).toHaveCount(1);
+    await expect(page.locator('.book-sticky-note')).toHaveCount(3);
+    await expect(page.locator('[data-sticky-note-kind="sold"]')).toHaveCount(1);
+    await expect(page.locator('[data-sticky-note-kind="awards"]')).toHaveCount(1);
+    await expect(page.locator('[data-sticky-note-kind="sold-awards"]')).toHaveCount(1);
 
-    const position1Note = page.getByRole('img', { name: 'Sold rights: Starry Cat Village 4' });
-    await expect(position1Note).toHaveAttribute('src', /\.png(?:$|\?)/);
+    const position1Note = page.getByRole('img', { name: 'Sold and awards: Starry Cat Village 4' });
+    await expect(position1Note).toHaveAttribute('src', /sticky-label-sold-award[^/]*\.svg(?:$|\?)/);
     const position1Card = page.locator('.book-card[data-book-id="star-cat-village-4"]');
     const position1Shell = page.locator('.book-card-shell').filter({ has: position1Card });
     const position1 = await position1Shell.evaluate((shell) => {
       const card = shell.querySelector<HTMLElement>('.book-card')!.getBoundingClientRect();
-      const note = shell.querySelector<HTMLElement>('[data-rights-note-position="1"]')!.getBoundingClientRect();
+      const note = shell.querySelector<HTMLElement>('[data-sticky-note-position="top-right"]')!.getBoundingClientRect();
+      const nextCard = shell.nextElementSibling?.querySelector<HTMLElement>('.book-card')?.getBoundingClientRect();
       return {
         overlapRatio: (card.right - note.left) / note.width,
         outsideRatio: (note.right - card.right) / note.width,
+        gapToNextCard: nextCard ? nextCard.left - note.right : null,
       };
     });
-    expect(position1.overlapRatio).toBeGreaterThan(.55);
-    expect(position1.overlapRatio).toBeLessThan(.8);
-    expect(position1.outsideRatio).toBeGreaterThan(.2);
-    expect(position1.outsideRatio).toBeLessThan(.45);
+    expect(position1.overlapRatio).toBeGreaterThan(.85);
+    expect(position1.overlapRatio).toBeLessThan(.95);
+    expect(position1.outsideRatio).toBeGreaterThan(.05);
+    expect(position1.outsideRatio).toBeLessThan(.15);
+    expect(position1.gapToNextCard).toBeGreaterThanOrEqual(8);
+  });
+  test('preloads sticky note artwork before fast category navigation', async ({ page }) => {
+    await page.goto('/');
+
+    const preloadFiles = await page.locator('link[rel="preload"][as="image"]').evaluateAll((links) => links.map((link) => new URL((link as HTMLLinkElement).href).pathname));
+    expect(preloadFiles).toHaveLength(3);
+    expect(preloadFiles.filter((path) => path.includes('sticky-label-'))).toHaveLength(3);
+
+    await page.getByRole('button', { name: 'Picture Books', exact: true }).click();
+    const note = page.getByRole('img', { name: 'Sold and awards: Starry Cat Village 4' });
+    await expect(note).toBeVisible();
+    expect(await note.evaluate((image: HTMLImageElement) => ({
+      complete: image.complete,
+      naturalWidth: image.naturalWidth,
+      decoding: image.decoding,
+      fetchPriority: image.fetchPriority,
+    }))).toEqual({
+      complete: true,
+      naturalWidth: 512,
+      decoding: 'sync',
+      fetchPriority: 'high',
+    });
+  });
+  test('manages each book sticky note type and position from the central editor', async ({ page }) => {
+    await page.goto('/');
+    await openManagement(page);
+
+    const management = page.locator('.management-section').filter({ has: page.getByRole('heading', { name: '책 관리' }) });
+    await management.locator('button[data-book-id="star-cat-village-4"]').click();
+
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: '편집', exact: true }).click();
+    await expect(dialog.getByLabel('스티키 노트 종류')).toHaveValue('sold-awards');
+    await expect(dialog.getByLabel('스티키 노트 위치')).toHaveValue('top-right');
+
+    await dialog.getByLabel('스티키 노트 종류').selectOption('awards');
+    await dialog.getByLabel('스티키 노트 위치').selectOption('bottom-left');
+    await dialog.getByRole('button', { name: '저장', exact: true }).click();
+    await dialog.getByRole('button', { name: '상세 닫기' }).click();
+    await page.getByRole('button', { name: '공개 서가 보기' }).click();
+
+    const note = page.getByRole('img', { name: 'Awards: Starry Cat Village 4' });
+    await expect(note).toHaveAttribute('data-sticky-note-kind', 'awards');
+    await expect(note).toHaveAttribute('data-sticky-note-position', 'bottom-left');
+    await expect(note).toHaveAttribute('src', /sticky-label-award[^/]*\.svg(?:$|\?)/);
+
+    const placement = await note.evaluate((element) => {
+      const noteRect = element.getBoundingClientRect();
+      const coverRect = element.parentElement!.querySelector<HTMLElement>('.cover-frame')!.getBoundingClientRect();
+      return {
+        attachedToLeftEdge: noteRect.left < coverRect.left && noteRect.right > coverRect.left,
+        belowCoverMidpoint: noteRect.top > coverRect.top + coverRect.height / 2,
+        insideCoverBottom: noteRect.bottom < coverRect.bottom,
+      };
+    });
+    expect(placement).toEqual({ attachedToLeftEdge: true, belowCoverMidpoint: true, insideCoverBottom: true });
+
+    await page.reload();
+    await expect(page.getByRole('img', { name: 'Awards: Starry Cat Village 4' })).toHaveAttribute('data-sticky-note-position', 'bottom-left');
   });
   test('filters cover risks and persists a manual public presentation override', async ({ page }) => {
     await page.goto('/');

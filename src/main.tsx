@@ -4,10 +4,11 @@ import { createRoot } from 'react-dom/client';
 import './styles.css';
 import booksData from './books.json';
 import { StickyToc, type StickyTocOption } from './components/StickyToc';
-import { SHELF_PANEL_FADE_DURATION_SECONDS } from './motion';
 import choiceMakerLogo from '../logo_02.svg';
 import editorialHero from '../item_01.png';
-import stickyNotePosition1 from '../note_Combine_8.png';
+import stickyNoteAwards from './assets/sticky-label-award.svg?no-inline';
+import stickyNoteSold from './assets/sticky-label-sold.svg?no-inline';
+import stickyNoteSoldAwards from './assets/sticky-label-sold-award.svg?no-inline';
 import awardIcon from '../award-outline.png';
 import moonFogIcon from '../moon-fog-outline.png';
 
@@ -17,6 +18,9 @@ type CoverAnalysis = { status: CoverStatus; cropFraction?: number };
 type SchoolGrade = 'kindergarten' | 'elementary-1' | 'elementary-2' | 'elementary-3' | 'elementary-4' | 'elementary-5' | 'elementary-6' | 'middle-1' | 'middle-2' | 'middle-3' | 'high-1' | 'high-2' | 'high-3';
 type AudienceBand = 'early-readers' | 'middle-grade' | 'young-adult';
 type AudienceFilter = 'all' | AudienceBand;
+type StickyNoteKind = 'sold' | 'awards' | 'sold-awards';
+type StickyNotePosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+type StickyNote = { kind: StickyNoteKind; position: StickyNotePosition };
 type RecommendedAudience = {
   label: string;
   band?: AudienceBand;
@@ -28,7 +32,7 @@ type RecommendedAudience = {
   confidence: 'high' | 'medium' | 'unavailable';
   note?: string;
 };
-type Book = { id: string; title: string; english: string; author: string; illustrator: string; publisher?: string; categories: string[]; cover: string; coverFit?: CoverFit; intro?: string; introSource?: 'YES24_PARAPHRASE' | 'ADMIN'; awards?: string[]; rightsSold?: string[]; isbn?: string; specs?: string; keywords?: string; publishedAt?: string; listPrice?: number; yes24Url?: string; recommendedAudience?: RecommendedAudience; seriesId?: string; seriesTitle?: string; seriesNumber?: number };
+type Book = { id: string; title: string; english: string; author: string; illustrator: string; publisher?: string; categories: string[]; cover: string; coverFit?: CoverFit; intro?: string; introSource?: 'YES24_PARAPHRASE' | 'ADMIN'; awards?: string[]; rightsSold?: string[]; stickyNote?: StickyNote; isbn?: string; specs?: string; keywords?: string; publishedAt?: string; listPrice?: number; yes24Url?: string; recommendedAudience?: RecommendedAudience; seriesId?: string; seriesTitle?: string; seriesNumber?: number };
 type Store = { books: Book[]; categories: string[]; catalogVersion: number };
 type CatalogState = { store: Store; selectedCategories: string[] };
 type DetailAudience = 'public' | 'management';
@@ -64,7 +68,18 @@ const makeCover = (title: string) => `data:image/svg+xml;charset=UTF-8,${encodeU
 const minimumDetailTitleSize = 15;
 const seriesNavigationCooldown = 220;
 const shelfCategoryOrder = ['그림책', '픽션', '교육만화', '그래픽노블', '언어학습'];
-const soldRightsPosition1BookIds = new Set(['star-cat-village-4']);
+const stickyNoteLabels: Readonly<Record<StickyNoteKind, string>> = {
+  sold: 'Rights sold',
+  awards: 'Awards',
+  'sold-awards': 'Rights sold and awards',
+};
+const stickyNoteAssets: Readonly<Record<StickyNoteKind, string>> = {
+  sold: stickyNoteSold,
+  awards: stickyNoteAwards,
+  'sold-awards': stickyNoteSoldAwards,
+};
+const stickyNoteKinds: readonly StickyNoteKind[] = ['sold', 'awards', 'sold-awards'];
+const stickyNotePositions: readonly StickyNotePosition[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
 const audienceFilterOptions: readonly StickyTocOption<AudienceFilter>[] = [
   { value: 'all', label: 'All' },
   { value: 'early-readers', label: 'Early Readers' },
@@ -133,6 +148,12 @@ function normalizeStringList(value: unknown): string[] {
   const entries = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
   return [...new Set(entries.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter((item) => item !== '' && item !== '없음'))];
 }
+function normalizeStickyNote(value: unknown): StickyNote | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const note = value as Partial<StickyNote>;
+  if (!stickyNoteKinds.includes(note.kind as StickyNoteKind) || !stickyNotePositions.includes(note.position as StickyNotePosition)) return undefined;
+  return { kind: note.kind as StickyNoteKind, position: note.position as StickyNotePosition };
+}
 function normalizeBook(book: Book, categories: string[]): Book {
   const safeCategories = Array.isArray(book.categories) ? [...new Set(book.categories.filter((item) => categories.includes(item)))] : [];
   const hasStaticCover = typeof book.cover === 'string' && /^(?:[a-z0-9][a-z0-9_-]*\/)*[a-z0-9][a-z0-9._-]*\.(?:avif|webp|png|jpe?g)$/i.test(book.cover);
@@ -140,6 +161,9 @@ function normalizeBook(book: Book, categories: string[]): Book {
   const normalized: Book = { ...book, categories: safeCategories, cover };
   normalized.awards = normalizeStringList((book as Book & { awards?: unknown }).awards);
   normalized.rightsSold = normalizeStringList((book as Book & { rightsSold?: unknown }).rightsSold);
+  const stickyNote = normalizeStickyNote((book as Book & { stickyNote?: unknown }).stickyNote);
+  if (stickyNote) normalized.stickyNote = stickyNote;
+  else delete normalized.stickyNote;
   if (normalizeCoverFit(book.coverFit) === 'auto') delete normalized.coverFit;
   else normalized.coverFit = normalizeCoverFit(book.coverFit);
   if (typeof book.seriesId === 'string' && book.seriesId.trim()) normalized.seriesId = book.seriesId.trim();
@@ -199,7 +223,7 @@ function loadStore(): Store {
     return initial;
   }
 }
-const copy = (book: Book): Book => ({ ...book, categories: [...book.categories], awards: [...(book.awards ?? [])], rightsSold: [...(book.rightsSold ?? [])] });
+const copy = (book: Book): Book => ({ ...book, categories: [...book.categories], awards: [...(book.awards ?? [])], rightsSold: [...(book.rightsSold ?? [])], stickyNote: book.stickyNote ? { ...book.stickyNote } : undefined });
 const focusable = (root: HTMLElement | null) => root ? [...root.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter((node) => !node.closest('[inert]') && !!(node.offsetWidth || node.offsetHeight || node.getClientRects().length)) : [];
 
 function ModalInteractionCoordinator(active: boolean, root: React.RefObject<HTMLElement | null>, initial: React.RefObject<HTMLElement | null>, onEscape: () => void, returnTo: () => HTMLElement | null) {
@@ -423,11 +447,7 @@ function PublicHero() {
 }
 function ShelfControls({ categories, selected, toggle }: { categories: string[]; selected: string[]; toggle: (category: string) => void }) { return <div className="filters" role="group" aria-label="카테고리 필터">{categories.filter((category) => category !== '보관').map((category) => { const active = selected.includes(category); return <button key={category} className={active ? 'active' : ''} aria-pressed={active} onClick={() => toggle(category)}>{publicCategoryLabel(category)}</button>; })}</div>; }
 function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; selected: boolean; hasActiveBooks: boolean }) {
-  const reduceMotion = useReducedMotion() ?? false;
-  const panelTransition = { duration: SHELF_PANEL_FADE_DURATION_SECONDS, ease: 'easeOut' as const };
-  const booksKey = books.map((book) => book.id).join(',');
-  return <AnimatePresence initial={false} mode="wait">
-    {books.length ? <motion.section key={`books:${booksKey}`} className="grid" aria-label="책 목록" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : panelTransition}>
+  return books.length ? <section className="grid" aria-label="책 목록">
       {books.map((book) => {
         const credits = [book.author, book.illustrator && book.illustrator !== '없음' ? book.illustrator : '', book.publisher].filter((value): value is string => typeof value === 'string' && value.trim() !== '');
         return <div key={book.id} className="book-card-shell">
@@ -443,11 +463,14 @@ function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; 
               <small className="book-creators">{credits.map((credit, index) => <span key={`${credit}-${index}`}>{credit}</span>)}</small>
             </span>
           </button>
-          {soldRightsPosition1BookIds.has(book.id) && <img className="book-rights-note book-rights-note-position-1" data-rights-note-position="1" src={stickyNotePosition1} alt="Sold rights: Starry Cat Village 4" />}
+          {book.stickyNote && <BookStickyNote book={book} note={book.stickyNote} />}
         </div>;
       })}
-    </motion.section> : <motion.p key="empty" className="empty" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : panelTransition}>{hasActiveBooks && selected ? '이 카테고리에 공개된 책이 없습니다' : '현재 공개된 책이 없습니다'}</motion.p>}
-  </AnimatePresence>;
+    </section> : <p className="empty">{hasActiveBooks && selected ? '이 카테고리에 공개된 책이 없습니다' : '현재 공개된 책이 없습니다'}</p>;
+}
+function BookStickyNote({ book, note }: { book: Book; note: StickyNote }) {
+  const src = stickyNoteAssets[note.kind];
+  return <img className={`book-sticky-note book-sticky-note-${note.position}`} data-sticky-note-kind={note.kind} data-sticky-note-position={note.position} src={src} alt={`${stickyNoteLabels[note.kind]}: ${book.english || book.title}`} decoding="sync" fetchPriority="high" />;
 }
 function BookCover({ book }: { book: Book }) {
   useCoverAnalysis(book.cover);
@@ -693,7 +716,7 @@ function BookDetailDialog({ detail, store, categories, updateBook, updateBookCat
     announce(intent === 'archive' ? '책을 보관했습니다.' : '책을 복원했습니다.');
   };
   const requestLifecycle = (intent: LifecycleIntent) => { if (dirty) setLocal({ ...local, phase: 'resolve-dirty', lifecycle: intent }); else setLocal({ ...local, phase: 'confirm-lifecycle', lifecycle: intent }); };
-  const setDraft = (field: keyof Book, value: string | string[]) => setLocal((current) => current.draft ? { ...current, draft: { ...current.draft, [field]: value } } : current);
+  const setDraft = (field: keyof Book, value: Book[keyof Book]) => setLocal((current) => current.draft ? { ...current, draft: { ...current.draft, [field]: value } } : current);
   return <motion.div className="overlay" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={reduceMotion ? undefined : { duration: 0.16, ease: 'easeOut' }}><motion.div className="dialog" ref={root} role="dialog" aria-modal="true" aria-labelledby={local.phase === 'read' ? titleId : phaseTitleId} onFocusCapture={(event) => { choiceHadFocus.current = event.target instanceof HTMLElement && Boolean(event.target.closest('.dialog-choice')); }} onPointerDown={handlePopupPointerDown} onPointerMove={handlePopupPointerMove} onPointerUp={finishPopupSwipe} onPointerCancel={cancelPopupSwipe} onWheel={handlePopupWheel} initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: 4 }} transition={reduceMotion ? undefined : { duration: 0.2, ease: 'easeOut' }}><div className="dialog-header"><button className="close" ref={closeButton} onClick={requestClose} aria-label="상세 닫기">닫기</button></div><><div className="dialog-content" ref={content}><StatusNotice announcement={status} />{local.phase === 'resolve-dirty' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title="변경 사항 처리" text="보관 또는 복원 전에 변경 사항을 저장하거나 폐기해야 합니다." onCancel={() => setLocal({ ...local, phase: 'edit', lifecycle: null })} actions={[['저장 후 계속', () => { save(); setLocal((current) => ({ ...current, phase: 'confirm-lifecycle', lifecycle: local.lifecycle })); }], ['폐기 후 계속', () => setLocal({ ...local, phase: 'confirm-lifecycle', baseline: undefined, draft: undefined })]]} /> : local.phase === 'confirm-lifecycle' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title={local.lifecycle === 'archive' ? '책 보관' : '책 복원'} text={local.lifecycle === 'archive' ? '이 책을 보관할까요?' : '이 책을 공개 서가로 복원할까요?'} onCancel={() => setLocal({ ...local, phase: 'read', lifecycle: null })} actions={[[local.lifecycle === 'archive' ? '보관' : '복원', lifecycle]]} /> : local.phase === 'confirm-close' ? <DialogChoice titleId={phaseTitleId} cancelRef={choiceCancel} title="변경 사항 폐기" text="저장하지 않은 변경 사항을 폐기하고 닫을까요?" onCancel={() => setLocal({ ...local, phase: 'edit' })} actions={[['폐기하고 닫기', close]]} /> : local.phase === 'edit' && local.draft ? <EditView titleId={phaseTitleId} book={local.draft} categories={categories} setDraft={setDraft} save={save} discard={() => local.identity.kind === 'create' ? close() : setLocal({ ...local, phase: 'read', baseline: undefined, draft: undefined })} canManageLifecycle={local.identity.kind === 'persisted'} requestLifecycle={() => requestLifecycle(archived ? 'restore' : 'archive')} lifecycleLabel={archived ? '복원' : '보관'} /> : <>{hasSeriesNavigation ? <SeriesDetailTransition book={book} titleId={titleId} seriesBooks={seriesBooks} seriesIndex={seriesIndex} onChangeSeriesVolume={changeSeriesVolume} boundaryNudge={seriesBoundaryNudge} reduceMotion={reduceMotion} /> : <ReadView book={book} titleId={titleId} seriesBooks={seriesBooks} seriesIndex={seriesIndex} onChangeSeriesVolume={changeSeriesVolume} />}{local.audience === 'management' && <div className="dialog-actions"><button onClick={startEdit}>편집</button><button ref={inverse} onClick={() => requestLifecycle(archived ? 'restore' : 'archive')}>{archived ? '복원' : '보관'}</button></div>}</>}</div>{local.audience === 'public' && local.phase === 'read' && seriesIndex >= 0 && seriesBooks.length > 1 && <SeriesNavigationArrows seriesBooks={seriesBooks} seriesIndex={seriesIndex} onChangeSeriesVolume={changeSeriesVolume} />}</></motion.div></motion.div>;
 }
 function SeriesDetailTransition({ book, titleId, seriesBooks, seriesIndex, onChangeSeriesVolume, boundaryNudge, reduceMotion }: { book: Book; titleId: string; seriesBooks: Book[]; seriesIndex: number; onChangeSeriesVolume: (offset: number) => void; boundaryNudge: number; reduceMotion: boolean }) {
@@ -970,7 +993,7 @@ function SeriesVolumeSlider({ seriesBooks, seriesIndex, onChangeSeriesVolume }: 
     </div>
   </section>;
 }
-function EditView({ titleId, book, categories, setDraft, save, discard, canManageLifecycle, requestLifecycle, lifecycleLabel }: { titleId: string; book: Book; categories: string[]; setDraft: (field: keyof Book, value: string | string[]) => void; save: () => void; discard: () => void; canManageLifecycle: boolean; requestLifecycle: () => void; lifecycleLabel: string }) {
+function EditView({ titleId, book, categories, setDraft, save, discard, canManageLifecycle, requestLifecycle, lifecycleLabel }: { titleId: string; book: Book; categories: string[]; setDraft: (field: keyof Book, value: Book[keyof Book]) => void; save: () => void; discard: () => void; canManageLifecycle: boolean; requestLifecycle: () => void; lifecycleLabel: string }) {
   const fields: (keyof Book)[] = ['title', 'english', 'author', 'illustrator', 'cover', 'intro', 'awards', 'rightsSold', 'isbn', 'specs', 'keywords'];
   const listFields = new Set<keyof Book>(['awards', 'rightsSold']);
   return <form className="editor" onSubmit={(event) => { event.preventDefault(); save(); }}>
@@ -980,6 +1003,10 @@ function EditView({ titleId, book, categories, setDraft, save, discard, canManag
       return <label key={field}>{field}<textarea value={Array.isArray(value) ? value.join('\n') : typeof value === 'string' ? value : ''} onChange={(event) => setDraft(field, listFields.has(field) ? event.target.value.split('\n') : event.target.value)} /></label>;
     })}
     <label className="cover-fit-select">표지 표시 방식<select value={normalizeCoverFit(book.coverFit)} onChange={(event) => setDraft('coverFit', event.target.value)}><option value="auto">자동</option><option value="cover">채우기 (cover)</option><option value="contain">맞춤 (contain)</option></select><small>자동은 프레임을 채우며, 검토·예외 상태는 여기서 표시 방식을 조정합니다.</small></label>
+    <fieldset className="sticky-note-editor"><legend>스티키 노트</legend>
+      <label>종류<select aria-label="스티키 노트 종류" value={book.stickyNote?.kind ?? 'none'} onChange={(event) => { const kind = event.target.value as StickyNoteKind | 'none'; setDraft('stickyNote', kind === 'none' ? undefined : { kind, position: book.stickyNote?.position ?? 'top-right' }); }}><option value="none">사용 안 함</option><option value="sold">RIGHTS SOLD</option><option value="awards">AWARDS</option><option value="sold-awards">RIGHTS SOLD + AWARDS</option></select></label>
+      <label>위치<select aria-label="스티키 노트 위치" value={book.stickyNote?.position ?? 'top-right'} disabled={!book.stickyNote} onChange={(event) => book.stickyNote && setDraft('stickyNote', { ...book.stickyNote, position: event.target.value as StickyNotePosition })}><option value="top-left">왼쪽 위</option><option value="top-right">오른쪽 위</option><option value="bottom-left">왼쪽 아래</option><option value="bottom-right">오른쪽 아래</option></select></label>
+    </fieldset>
     <fieldset><legend>카테고리</legend>{categories.filter((item) => item !== '보관').map((category) => <label key={category}><input type="checkbox" checked={book.categories.includes(category)} onChange={() => setDraft('categories', book.categories.includes(category) ? book.categories.filter((item) => item !== category) : [...book.categories, category])} />{publicCategoryLabel(category)}</label>)}</fieldset>
     <button>저장</button><button type="button" onClick={discard}>변경 취소</button>{canManageLifecycle && <button type="button" onClick={requestLifecycle}>{lifecycleLabel}</button>}
   </form>;
