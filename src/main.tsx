@@ -6,6 +6,8 @@ import booksData from './books.json';
 import { StickyToc, type StickyTocOption } from './components/StickyToc';
 import choiceMakerLogo from '../logo_02.svg';
 import editorialHero from '../item_01.png';
+import portfolioPageReference from '../portfolio_page_example.png';
+import imageOutline from '../image-outline.png';
 import stickyNoteAwards from './assets/sticky-label-award.svg?no-inline';
 import stickyNoteSold from './assets/sticky-label-sold.svg?no-inline';
 import stickyNoteSoldAwards from './assets/sticky-label-sold-award.svg?no-inline';
@@ -294,6 +296,7 @@ function App() {
   const { store, selectedCategories: selected } = catalog;
   const [surface, setSurface] = useState<'public' | 'management'>('public');
   const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>('all');
+  const [publicPage, setPublicPage] = useState<'catalog' | 'portfolio'>('catalog');
   const [topLayer, setTopLayer] = useState<TopLayer | null>(null);
   const [notice, announce] = useAnnouncer();
   const publicHeading = useRef<HTMLHeadingElement>(null);
@@ -344,6 +347,7 @@ function App() {
     return true;
   };
   const togglePublicCategory = (category: string) => {
+    setPublicPage('catalog');
     setAudienceFilter('all');
     setCatalog((current) => ({ ...current, selectedCategories: current.selectedCategories.includes(category) ? [] : [category] }));
   };
@@ -397,8 +401,12 @@ function App() {
         <main id="top" className="public-shelf">
           <PageFrame>
             <PublicHeader heading={publicHeading} categories={store.categories} selected={selected} toggle={togglePublicCategory} onOpenManagement={() => setSurface('management')} />
-            {!selectedCategory && <PublicHero />}
-            <StickyToc active={selectedCategory === '픽션'} title={publicCategoryLabel(selectedCategory ?? '픽션')} options={audienceFilterOptions} value={audienceFilter} onChange={setAudienceFilter}>{featuredShelf}</StickyToc>
+            {publicPage === 'portfolio'
+              ? <CompanyPortfolio />
+              : <>
+                {!selectedCategory && <PublicHero onOpenPortfolio={() => setPublicPage('portfolio')} />}
+                <StickyToc active={selectedCategory === '픽션'} title={publicCategoryLabel(selectedCategory ?? '픽션')} options={audienceFilterOptions} value={audienceFilter} onChange={setAudienceFilter}>{featuredShelf}</StickyToc>
+              </>}
           </PageFrame>
         </main>
       ) : (
@@ -433,17 +441,90 @@ function PublicHeader({ heading, categories, selected, toggle, onOpenManagement 
     <nav className="public-category-navigation" aria-label="도서 카테고리"><ShelfControls categories={categories} selected={selected} toggle={toggle} /></nav>
   </header>;
 }
-function PublicHero() {
+function PublicHero({ onOpenPortfolio }: { onOpenPortfolio: () => void }) {
   const reduceMotion = useReducedMotion() ?? false;
   const headingTransition = { duration: 0.36, ease: 'easeOut' as const };
   return <section className="public-hero" aria-labelledby="public-hero-heading">
     <div className="public-hero-copy">
       <motion.h2 id="public-hero-heading" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} transition={reduceMotion ? undefined : headingTransition}>Curated Stories.<br />Worldwide Impact.</motion.h2>
       <p className="public-hero-subtitle">The ChoiceMaker Korea<br />2026 Frankfurt BookFair Exhibit Titles</p>
-      <a className="public-hero-cta" href="#featured-titles">Explore Our Portfolio <span aria-hidden="true">→</span></a>
+      <button className="public-hero-cta" type="button" onClick={onOpenPortfolio}>Explore Our Portfolio <span aria-hidden="true">→</span></button>
     </div>
     <img className="public-hero-image" src={editorialHero} alt="The ChoiceMaker Korea의 어린이 책 컬렉션" />
   </section>;
+}
+
+const partners = [
+  { name: 'KODANSHA', logoCrop: [77, 526, 112, 48] },
+  { name: 'SHOGAKUKAN', logoCrop: [207, 526, 112, 48] },
+  { name: 'FAMILUS', logoCrop: [330, 526, 108, 48] },
+  { name: 'KADOKAWA', logoCrop: [455, 526, 112, 48] },
+  { name: 'HarperCollins', logoCrop: [597, 526, 112, 48] },
+  { name: 'HACHETTE LIVRE', logoCrop: [718, 526, 114, 48] },
+  { name: 'WALKER BOOKS', logoCrop: [846, 526, 58, 48] },
+  { name: 'Macmillan Children’s Books', logoCrop: [918, 526, 60, 48] },
+] as const;
+const bookFairs = [
+  { name: 'Bologna Children’s Book Fair 2024', location: 'Bologna, Italy' },
+  { name: 'Frankfurt Book Fair 2024', location: 'Frankfurt, Germany' },
+  { name: 'London Book Fair 2024', location: 'London, United Kingdom' },
+  { name: 'Seoul International Book Fair 2024', location: 'Seoul, Korea' },
+  { name: 'Tokyo International Book Fair 2024', location: 'Tokyo, Japan' },
+  { name: 'Beijing International Book Fair 2024', location: 'Beijing, China' },
+  { name: 'Taipei International Book Exhibition 2024', location: 'Taipei, Taiwan' },
+] as const;
+
+function CompanyPortfolio() {
+  return <article className="company-portfolio">
+    <section className="portfolio-intro" aria-labelledby="portfolio-heading">
+      <div className="portfolio-intro-copy">
+        <p className="portfolio-eyebrow">ABOUT US</p>
+        <h2 id="portfolio-heading">Connecting Stories,<br />Bringing Books to the World.</h2>
+        <p>더초이스메이커코리아는 한국의 우수한 도서를 발굴하여<br className="portfolio-desktop-break" /> 전 세계 독자들과 연결하는 해외 저작권 중개 전문 에이전시입니다.</p>
+      </div>
+      <img src={choiceMakerLogo} alt="The ChoiceMaker Korea" />
+    </section>
+
+    <section className="portfolio-partners" aria-label="Our partners">
+      <div className="partner-marquee">
+        <div className="partner-marquee-track">
+          {[false, true].map((duplicate) => <div className="partner-marquee-group" aria-hidden={duplicate || undefined} key={String(duplicate)}>
+            {partners.map(({ name, logoCrop }) => <div className="partner-card" key={name}>
+              <svg viewBox={logoCrop.join(' ')} aria-hidden="true">
+                <image href={portfolioPageReference} width="1024" height="1536" />
+              </svg>
+              <span>{name}</span>
+            </div>)}
+          </div>)}
+        </div>
+      </div>
+    </section>
+
+    <section className="portfolio-fairs" aria-labelledby="book-fairs-heading">
+      <div className="portfolio-section-heading">
+        <div>
+          <p className="portfolio-eyebrow">BOOK FAIRS</p>
+          <h2 id="book-fairs-heading">Where We Meet, Connect, and Grow.</h2>
+          <p>전 세계 주요 도서전에 지속적으로 참여하며,<br />한국의 이야기를 더 많은 독자들에게 전하고 있습니다.</p>
+        </div>
+      </div>
+      <div className="fair-grid">
+        {bookFairs.map(({ name, location }, index) => <figure className={index < 3 ? 'fair-card fair-card-featured' : 'fair-card'} key={name}>
+          <div className="fair-image-placeholder" role="img" aria-label={`${name} 이미지 자리`}>
+            <img src={imageOutline} alt="" />
+          </div>
+          <figcaption><strong>{name}</strong><span>{location}</span></figcaption>
+        </figure>)}
+      </div>
+    </section>
+
+    <section className="portfolio-closing">
+      <img src={choiceMakerLogo} alt="" />
+      <h2>Good Books.<br />Global Impact.</h2>
+      <p>우리는 좋은 책이 새로운 세계를 만난다고 믿습니다.<br />이야기의 가능성을 함께 만들어가는 파트너입니다.</p>
+      <a href="mailto:contact@choicemaker.co.kr">Contact Us <span aria-hidden="true">→</span></a>
+    </section>
+  </article>;
 }
 function ShelfControls({ categories, selected, toggle }: { categories: string[]; selected: string[]; toggle: (category: string) => void }) { return <div className="filters" role="group" aria-label="카테고리 필터">{categories.filter((category) => category !== '보관').map((category) => { const active = selected.includes(category); return <button key={category} className={active ? 'active' : ''} aria-pressed={active} onClick={() => toggle(category)}>{publicCategoryLabel(category)}</button>; })}</div>; }
 function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; selected: boolean; hasActiveBooks: boolean }) {
