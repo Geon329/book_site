@@ -8,9 +8,9 @@ import choiceMakerLogo from '../logo_02.svg';
 import editorialHero from '../item_01.png';
 import portfolioPageReference from '../portfolio_page_example.png';
 import imageOutline from '../image-outline.png';
-import stickyNoteAwards from './assets/sticky-label-award.svg?no-inline';
-import stickyNoteSold from './assets/sticky-label-sold.svg?no-inline';
-import stickyNoteSoldAwards from './assets/sticky-label-sold-award.svg?no-inline';
+import stickyNoteAwards from '../note_AWARDS.png';
+import stickyNoteSold from '../note_SOLO.png';
+import stickyNoteSoldAwards from '../note_Combine_7.png';
 import awardIcon from '../award-outline.png';
 import moonFogIcon from '../moon-fog-outline.png';
 
