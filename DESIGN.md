@@ -1,482 +1,195 @@
 ---
-version: alpha
-name: Slacc-design-analysis
-description: An inspired interpretation of Slacc's design language — a workplace messaging brand built on a deep aubergine primary, with cream-lavender hero gradients, blue inline links, and pill CTAs. The system pairs a proprietary humanist sans for display with a separate utility sans for body, and stages product UI mockups inside soft pastel-mesh hero composites that act as both decoration and feature explanation.
-
-colors:
-  primary: "#4a154b"
-  primary-deep: "#481a54"
-  primary-press: "#611f69"
-  primary-tint: "#592466"
-  on-primary: "#ffffff"
-  ink: "#1d1d1d"
-  ink-mute: "#696969"
-  link-blue: "#1264a3"
-  link-hover: "#3860be"
-  canvas: "#ffffff"
-  canvas-cream: "#f4ede4"
-  canvas-lavender: "#f9f0ff"
-  surface-elev: "#ffffff"
-  surface-aubergine: "#4a154b"
-  hairline: "#e6e6e6"
-  hairline-strong: "#000000"
-  semantic-error: "#cc4117"
-  semantic-success: "#007a5a"
-  on-aubergine-mute: "#d9bdde"
-
-typography:
-  display-xxl:
-    fontFamily: "Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 64px
-    fontWeight: 700
-    lineHeight: 1.12
-    letterSpacing: -0.768px
-  display-xl:
-    fontFamily: "Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 58px
-    fontWeight: 600
-    lineHeight: 1.25
-    letterSpacing: -0.464px
-  display-lg:
-    fontFamily: "Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 50px
-    fontWeight: 700
-    lineHeight: 1.12
-    letterSpacing: -0.6px
-  display-md:
-    fontFamily: "Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.256px
-  heading-lg:
-    fontFamily: "Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 24px
-    fontWeight: 700
-    lineHeight: 1.33
-    letterSpacing: -0.096px
-  heading-md:
-    fontFamily: "Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 22px
-    fontWeight: 600
-    lineHeight: 1.4
-    letterSpacing: 0
-  heading-sm:
-    fontFamily: "Salesforce-Avant-Garde, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
-    fontSize: 18px
-    fontWeight: 600
-    lineHeight: 1.56
-    letterSpacing: -0.0216px
-  body-lg:
-    fontFamily: "Salesforce-Sans, system-ui, -apple-system, sans-serif"
-    fontSize: 18px
-    fontWeight: 400
-    lineHeight: 1.55
-    letterSpacing: -0.0216px
-  body-md:
-    fontFamily: "Salesforce-Sans, system-ui, -apple-system, sans-serif"
-    fontSize: 16px
-    fontWeight: 400
-    lineHeight: 1.55
-    letterSpacing: 0
-  body-strong:
-    fontFamily: "Salesforce-Sans, system-ui, -apple-system, sans-serif"
-    fontSize: 16px
-    fontWeight: 700
-    lineHeight: 1.5
-    letterSpacing: 0.16px
-  button-lg:
-    fontFamily: "Salesforce-Sans, system-ui, -apple-system, sans-serif"
-    fontSize: 18px
-    fontWeight: 700
-    lineHeight: 1.0
-    letterSpacing: 0
-  button-md:
-    fontFamily: "Salesforce-Sans, system-ui, -apple-system, sans-serif"
-    fontSize: 16px
-    fontWeight: 700
-    lineHeight: 1.38
-    letterSpacing: 0.2px
-  button-cap:
-    fontFamily: "Salesforce-Sans, system-ui, -apple-system, sans-serif"
-    fontSize: 14.4px
-    fontWeight: 700
-    lineHeight: 1.0
-    letterSpacing: 0.144px
-  caption:
-    fontFamily: "Salesforce-Sans, system-ui, -apple-system, sans-serif"
-    fontSize: 14px
-    fontWeight: 400
-    lineHeight: 1.43
-    letterSpacing: 0.1px
-  micro-cap:
-    fontFamily: "Salesforce-Sans, system-ui, -apple-system, sans-serif"
-    fontSize: 12px
-    fontWeight: 700
-    lineHeight: 1.0
-    letterSpacing: 0.96px
-
-rounded:
-  xs: 2px
-  sm: 4px
-  md: 8px
-  lg: 12px
-  xl: 16px
-  xxl: 48px
-  pill: 90px
-
-spacing:
-  xs: 4px
-  sm: 8px
-  md: 12px
-  lg: 16px
-  xl: 20px
-  xxl: 24px
-  huge: 28px
-
-components:
-  button-primary-pill:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.on-primary}"
-    typography: "{typography.button-md}"
-    rounded: "{rounded.pill}"
-    padding: 14px 28px
-  button-primary-pill-pressed:
-    backgroundColor: "{colors.primary-press}"
-    textColor: "{colors.on-primary}"
-    typography: "{typography.button-md}"
-    rounded: "{rounded.pill}"
-    padding: 14px 28px
-  button-secondary-pill:
-    backgroundColor: "{colors.canvas-lavender}"
-    textColor: "{colors.ink}"
-    typography: "{typography.button-md}"
-    rounded: "{rounded.pill}"
-    padding: 10px 30px
-  button-outline-aubergine:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.primary}"
-    typography: "{typography.button-md}"
-    rounded: "{rounded.pill}"
-    padding: 14px 28px
-  button-outline-on-aubergine:
-    backgroundColor: "{colors.surface-aubergine}"
-    textColor: "{colors.on-primary}"
-    typography: "{typography.button-md}"
-    rounded: "{rounded.pill}"
-    padding: 14px 28px
-  text-input:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.sm}"
-    padding: 10px 12px
-  pill-cap-shade:
-    backgroundColor: "{colors.canvas-cream}"
-    textColor: "{colors.ink}"
-    typography: "{typography.micro-cap}"
-    rounded: "{rounded.pill}"
-    padding: 4px 12px
-  card-pricing:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.xl}"
-    padding: 32px
-  card-pricing-featured:
-    backgroundColor: "{colors.surface-aubergine}"
-    textColor: "{colors.on-primary}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.xl}"
-    padding: 32px
-  card-feature-cream:
-    backgroundColor: "{colors.canvas-cream}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.xl}"
-    padding: 32px
-  card-aubergine-band:
-    backgroundColor: "{colors.surface-aubergine}"
-    textColor: "{colors.on-primary}"
-    typography: "{typography.body-lg}"
-    rounded: "{rounded.xl}"
-    padding: 48px
-  card-stat:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.primary}"
-    typography: "{typography.display-lg}"
-    rounded: "{rounded.xl}"
-    padding: 32px
-  nav-bar-light:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.xs}"
-    padding: 16px 24px
-  link-on-light:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.link-blue}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.xs}"
-    padding: 0px
-  link-on-aubergine:
-    backgroundColor: "{colors.surface-aubergine}"
-    textColor: "{colors.on-primary}"
-    typography: "{typography.body-md}"
-    rounded: "{rounded.xs}"
-    padding: 0px
-  footer-aubergine:
-    backgroundColor: "{colors.surface-aubergine}"
-    textColor: "{colors.on-primary}"
-    typography: "{typography.caption}"
-    rounded: "{rounded.xs}"
-    padding: 32px 24px
+version: 1.0.0
+name: ChoiceMaker Editorial Design System
+status: active
+source: src/styles.css (.public-shelf)
 ---
 
-## Overview
-
-Slacc's design language centers on a deep aubergine primary (`{colors.primary}`) — the brand's most enduring visual asset — applied as the dominant button color, the footer band, the featured pricing tier, and the brand wordmark. Around that aubergine the system stages an unusually delicate ecosystem: cream-lavender hero canvases with soft pastel-mesh gradients (peachy oranges, lavenders, dusty greens) that pulse behind floating product UI mockups, with the actual interface chrome rendered in fine detail at 3:2 aspect.
-
-Typography splits between two proprietary humanist sans families. The display tier runs at 700 weight at sizes 32–64px with negative letter-spacing for tight optical density on hero headlines. The UI tier uses the second family at 400–700 with slightly relaxed leading (1.55) — the brand's body copy reads quietly without competing with the aubergine moments.
-
-Buttons are pill-shaped at 90px radius with an unusual amount of horizontal padding (28–30px), giving them a distinctly comfortable, almost over-padded feel. The primary aubergine pill is the only filled button in most contexts; secondary actions use a soft lavender pill (`{colors.canvas-lavender}`) which reads as a gentler echo of the primary surface. Inline links shift to a saturated blue (`{colors.link-blue}`) — the brand's only chromatic departure from the aubergine-and-cream world.
-
-**Key Characteristics:**
-- Single aubergine primary (`{colors.primary}`) reused across CTAs, the featured pricing tier, the footer band, and the wordmark — the brand's chromatic monotheism.
-- Cream-lavender hero canvas (`{colors.canvas-cream}` / `{colors.canvas-lavender}`) with diffused pastel-mesh atmospheric gradients and floating UI mockups composited above.
-- Pill buttons at `{rounded.pill}` (90px radius) with generous 28–30px horizontal padding — over-padded by SaaS-default standards, deliberately so.
-- Tight negative letter-spacing on display sizes (-0.768px on 64px hero) for editorial-density headlines.
-- Blue inline links (`{colors.link-blue}`) — the only non-aubergine chromatic accent in body type.
-- Pastel-mesh gradient atmospherics: every hero band has a subtle peach-lavender-dusty-green wash behind it; product UI sits on top, never inside, the gradient.
-- Statistics cards rendered in massive aubergine display type (90% / 43 / 87%) on white — quantitative emphasis through scale alone.
-
-## Colors
-
-> **Source pages:** home (`/`), `/features/channels`, `/pricing`, `/contact-sales`.
-
-### Brand & Accent
-- **Aubergine** (`{colors.primary}` — `#4a154b`): The brand's primary surface and CTA color. Deep, warm purple with a hint of ruby — used on filled buttons, the featured pricing tier, the footer band, and the brand wordmark.
-- **Aubergine Deep** (`{colors.primary-deep}` — `#481a54`): A near-identical sibling of `{colors.primary}` extracted from a different surface; treat as functionally equivalent.
-- **Aubergine Press** (`{colors.primary-press}` — `#611f69`): Pressed-state lift of the primary, slightly lighter and warmer.
-- **Aubergine Tint** (`{colors.primary-tint}` — `#592466`): Border accent on aubergine-on-aubergine surfaces.
-- **Link Blue** (`{colors.link-blue}` — `#1264a3`): Inline link color — saturated, slightly warm blue. The only chromatic alternative to aubergine in body type.
-- **Link Hover** (`{colors.link-hover}` — `#3860be`): A more saturated blue used on link hover state.
-
-### Surface
-- **Canvas White** (`{colors.canvas}` — `#ffffff`): Default content surface.
-- **Canvas Cream** (`{colors.canvas-cream}` — `#f4ede4`): Warm off-white used on hero gradients and feature bands. Adds editorial warmth.
-- **Canvas Lavender** (`{colors.canvas-lavender}` — `#f9f0ff`): Pale lavender tint used as the secondary-button surface and as a soft section band.
-- **Surface Aubergine** (`{colors.surface-aubergine}` — `#4a154b`): The primary aubergine reused as a surface — featured pricing tier, footer, dark feature bands.
-- **Hairline** (`{colors.hairline}` — `#e6e6e6`): 1px borders on cards and table dividers.
-
-### Text
-- **Ink** (`{colors.ink}` — `#1d1d1d`): Primary body text on light surfaces. Just shy of pure black.
-- **Ink Mute** (`{colors.ink-mute}` — `#696969`): Secondary text, captions, helper copy.
-- **On Primary** (`{colors.on-primary}` — `#ffffff`): Text on aubergine surfaces and filled CTAs.
-- **On Aubergine Mute** (`{colors.on-aubergine-mute}` — `#d9bdde`): Secondary text on aubergine surfaces — a desaturated mauve that reads as muted-light.
-
-### Semantic
-- **Error** (`{colors.semantic-error}` — `#cc4117`): Form error and destructive-action color.
-- **Success** (`{colors.semantic-success}` — `#007a5a`): Inline success indicators.
-
-## Typography
+# ChoiceMaker Editorial Design System
 
-### Font Family
+## 1. 정의
 
-The display tier is **Salesforce Avant Garde** — a proprietary humanist sans with broad apertures and a slightly geometric character. When unavailable, fall back to the system font stack (`system-ui, -apple-system, BlinkMacSystemFont`).
+따뜻한 종이색 바탕 위에 청회색 세리프 타이포그래피, 얇은 구조선, 넓은 여백과 다채로운 책 표지를 배치하는 국제 출판권 카탈로그형 에디토리얼 시스템이다.
 
-The UI tier is **Salesforce Sans** — a separate proprietary face used for body, captions, and button labels. Same fallback chain.
+이 시스템은 일반 소비자용 아동 서점이 아니라 해외 출판사, 저작권 담당자와 에이전트를 위한 B2B 포트폴리오를 전제로 한다. 인터페이스는 절제하고 책 표지가 시각적 에너지를 담당한다.
 
-Both faces are proprietary and not freely available. Substitute with **Inter** (open-source via Google Fonts) at matching weights for both display and body — Inter is the closest open analogue across both tiers.
+## 2. 적용 범위와 기준 소스
 
-### Hierarchy
+- 공개 카탈로그와 회사 포트폴리오: 이 문서와 `src/styles.css`의 `.public-shelf` 토큰을 따른다.
+- 관리 화면: 공통 접근성 규칙을 공유하지만 별도의 기능 중심 UI를 허용한다.
+- 실제 값의 기준 소스는 `.public-shelf`의 `--editorial-*` CSS 사용자 정의 속성이다.
+- 컴포넌트에서 색상, 컨테이너 폭, 주요 간격, Radius를 임의의 숫자로 다시 선언하지 않는다.
+- 반응형 값은 동일 토큰을 미디어 쿼리에서 재정의한다.
 
-| Token | Size | Weight | Line Height | Letter Spacing | Use |
-|---|---|---|---|---|---|
-| `{typography.display-xxl}` | 64px | 700 | 1.12 | -0.768px | Marketing hero headline |
-| `{typography.display-xl}` | 58px | 600 | 1.25 | -0.464px | Section openers |
-| `{typography.display-lg}` | 50px | 700 | 1.12 | -0.6px | Statistics callouts |
-| `{typography.display-md}` | 32px | 700 | 1.25 | -0.256px | Card / feature titles |
-| `{typography.heading-lg}` | 24px | 700 | 1.33 | -0.096px | Pricing tier names |
-| `{typography.heading-md}` | 22px | 600 | 1.4 | 0 | Sub-section heading |
-| `{typography.heading-sm}` | 18px | 600 | 1.56 | -0.0216px | Compact card title |
-| `{typography.body-lg}` | 18px | 400 | 1.55 | -0.0216px | Marketing body lead |
-| `{typography.body-md}` | 16px | 400 | 1.55 | 0 | Default UI body |
-| `{typography.body-strong}` | 16px | 700 | 1.5 | 0.16px | Emphasized body |
-| `{typography.button-lg}` | 18px | 700 | 1.0 | 0 | Hero pill button label |
-| `{typography.button-md}` | 16px | 700 | 1.38 | 0.2px | Standard pill button label |
-| `{typography.button-cap}` | 14.4px | 700 | 1.0 | 0.144px | Compact pill label |
-| `{typography.caption}` | 14px | 400 | 1.43 | 0.1px | Helper, footnote |
-| `{typography.micro-cap}` | 12px | 700 | 1.0 | 0.96px | All-caps eyebrow |
+## 3. 디자인 원칙
 
-### Principles
-- **Tight tracking on display.** Negative letter-spacing across 32–64px sizes; the proprietary face is wide by default, the negative tracking pulls it into editorial density.
-- **Body at 1.55 leading.** Slightly relaxed for marketing readability without crossing into airy / 1.7+ territory.
-- **Caps for eyebrows.** All eyebrows render uppercase with positive 0.96–0.144px tracking depending on size.
+1. **Editorial** — 웹 앱보다 출판 카탈로그와 북페어 브로슈어에 가깝게 구성한다.
+2. **Institutional** — 규칙적인 분류와 그리드로 선별·연결하는 전문기관의 인상을 유지한다.
+3. **Warm Professional** — 웜 뉴트럴로 온기를, 청회색 Ink로 신뢰를 만든다.
+4. **Curated, not Playful** — 장난스러운 장식 대신 책 표지에 색채와 개성을 맡긴다.
+5. **Content First** — UI 장식이 표지, 권리 판매 상태와 서지 정보를 압도하지 않는다.
 
-### Note on Font Substitutes
-Use **Inter** (open-source Google Fonts) for both display and UI tiers — Inter at 700 weight with `-0.768px` letter-spacing closely approximates the brand's display behavior. For maximum brand fidelity, **Lato** is a softer humanist alternative that pairs well at body sizes. Avoid System UI fonts on the body — the brand's subtle warmth disappears at default weights.
+## 4. Foundation
 
-## Layout
+### 4.1 Color
 
-### Spacing System
-- **Base unit**: 8px (with 4 / 12 / 16 / 20 / 24 / 28 sub-tokens for fine vertical rhythm).
-- **Tokens**: `{spacing.xs}` 4px · `{spacing.sm}` 8px · `{spacing.md}` 12px · `{spacing.lg}` 16px · `{spacing.xl}` 20px · `{spacing.xxl}` 24px · `{spacing.huge}` 28px.
-- **Section padding**: 64–96px on marketing surfaces; tightens to 48px on transactional pages.
-- **Card internal padding**: 32px on pricing cards; 48px on aubergine band cards.
+| 역할 | CSS 토큰 | 값 | 용도 |
+|---|---|---:|---|
+| Paper | `--editorial-paper` | `#F0EEE9` | 공개 화면 Canvas |
+| Surface | `--editorial-surface` | `#FBFAF7` | 카드와 밝은 콘텐츠 면 |
+| Primary Ink | `--editorial-ink` | `#37515F` | 제목, 주요 텍스트, 주요 행동 |
+| Muted Ink | `--editorial-muted` | `#6E7680` | 보조 정보 |
+| Divider | `--editorial-line` | `#D8D3CC` | 구조선과 카드 테두리 |
+| Cool Accent | `--editorial-accent` | `#A8B7C4` | 제한적인 보조 강조 |
+| Brand Green | `--editorial-brand-green` | `#619F3C` | Hover, Focus, 현재 위치 등 작은 브랜드 신호 |
+| On Primary | `--editorial-on-primary` | `#FFFFFF` | Ink 표면 위 텍스트 |
 
-### Grid & Container
-- Marketing pages center in a ~1240px container with edge-bleeding pastel-mesh gradients escaping the container.
-- Pricing collapses 4-up → 2-up → 1-up at 992 / 768 breakpoints.
-- Statistics row: 3-column grid with massive 50px aubergine display numerals.
+Brand Green은 전체 화면 면적의 3~5% 이내에서 사용한다. 큰 배경 면이나 책 표지와 경쟁하는 장식에는 사용하지 않는다.
 
-### Whitespace Philosophy
-The pastel-mesh gradients fill most of the negative space on marketing pages — sections feel expansive without being literally empty. On transactional pages the gradients drop, and whitespace reverts to traditional 48px-section breathing room.
+작은 본문과 Metadata는 배경 대비 4.5:1 이상을 유지한다. 낮은 opacity로 대비를 낮추지 말고 의미가 맞는 토큰을 사용한다.
 
-## Elevation & Depth
+### 4.2 Typography
 
-| Level | Treatment | Use |
-|---|---|---|
-| 0 | Flat | Default surface |
-| 1 | `box-shadow: rgba(0,0,0,0.1) 0 5px 20px 0` | Floating buttons on hero |
-| 2 | `box-shadow: rgba(0,0,0,0.1) 0 0 32px 0` | Product UI mockup composites |
-| 3 | `box-shadow: rgba(0,0,0,0.2) 0 1px 10px 0` | Toast / notification chrome |
-| 4 | `box-shadow: rgb(97,31,105) 0 0 0 1px inset` | Aubergine inset border (button focus, special chrome) |
+| 역할 | CSS 토큰 | 서체 | 기본 규칙 |
+|---|---|---|---|
+| Display | `--editorial-font-display` | Cormorant Garamond 600 | 페이지·섹션 제목, 워드마크 |
+| UI / Body | `--editorial-font-ui` | Pretendard 400/500/600 | 본문, 내비게이션, 버튼, Metadata |
 
-### Decorative Depth
-The brand's depth language is the **pastel-mesh gradient** — peach, lavender, dusty green stops blurred together at large radii to create soft atmospheric backdrops behind product UI screenshots. The gradient is the brand's flavor of "depth without shadows": the eye perceives the product mockup as floating above a luminous backdrop without any literal lift.
+- Hero: Display, 55~58px Desktop, line-height 약 0.98, 음수 자간
+- Portfolio Hero: Display, 최대 70px Desktop
+- Section heading: Display, 약 35~50px
+- Body: UI, 17.5~20px Desktop
+- Navigation: UI, 17.5px Desktop
+- Card title: UI, 18.75px Desktop
+- Metadata/Eyebrow: UI, 12~13px, 필요할 때 Uppercase와 넓은 자간
+- 제목 위계는 색상 변화보다 서체, 크기와 여백으로 만든다.
 
-## Shapes
+### 4.3 Containers and Grid
 
-### Border Radius Scale
+| 역할 | CSS 토큰 | 현재 값 |
+|---|---|---:|
+| Wide Container | `--editorial-container-wide` | `1600px` |
+| Catalogue Container | `--editorial-container-catalog` | `1600px` |
+| Wide Gutter | `--editorial-gutter-wide` | `clamp(48px, 4vw, 72px)` |
+| Desktop Card | `--editorial-card-width` | `270px` |
+| Catalogue Gap | `--editorial-grid-gap` | `25px` |
 
-| Token | Value | Use |
-|---|---|---|
-| `{rounded.xs}` | 2px | Hairline tags, status pills (rare) |
-| `{rounded.sm}` | 4px | Form inputs |
-| `{rounded.md}` | 8px | Compact card chrome, video frames |
-| `{rounded.lg}` | 12px | Mid-size cards, secondary surface |
-| `{rounded.xl}` | 16px | Pricing cards, feature cards |
-| `{rounded.xxl}` | 48px | Stat badge backdrops |
-| `{rounded.pill}` | 90px | All buttons |
+Wide와 Catalogue는 현재 값이 같아도 의미가 다르므로 별도 토큰을 유지한다. 제목·Hero·서사 콘텐츠는 Wide, 책 카드와 카탈로그 콘텐츠는 Catalogue를 사용한다. 향후 폭을 조정할 때 컴포넌트가 아니라 토큰만 변경한다.
 
-### Photography Geometry
-The brand uses **product UI screenshots** more than photography. UI mockups sit on top of pastel-mesh gradients at roughly 4:3 aspect, with no shadow but with the gradient providing the "lift" the eye expects. Real photography appears in customer-logo strips and the occasional case-study card, treated as full-bleed inside `{rounded.xl}` containers.
+Grid는 Desktop에서 가용 폭에 따라 4~5열, Tablet 2~3열, Mobile 1열로 축소한다. 표지는 고정된 영역 안에서 원본 비율을 보존하며, 자르기가 콘텐츠 요구사항으로 명시되지 않은 경우 `object-fit: contain`을 기본으로 한다.
 
-## Components
+### 4.4 Spacing
 
-### Buttons
+| 단계 | CSS 토큰 | 값 |
+|---|---|---:|
+| Small section | `--editorial-section-space-sm` | `40px` |
+| Medium section | `--editorial-section-space-md` | `72px` |
+| Large section | `--editorial-section-space-lg` | `90px` |
 
-**`button-primary-pill`** — the dominant CTA system-wide.
-- Background `{colors.primary}`, text `{colors.on-primary}`, type `{typography.button-md}`, padding `14px 28px`, rounded `{rounded.pill}` 90px.
-- Pressed state `button-primary-pill-pressed` shifts background to `{colors.primary-press}`.
+Catalogue는 Small~Medium, Landing은 Medium, About/Story는 Medium~Large 호흡을 기본으로 한다. 컴포넌트 내부 간격은 기존 카드·Hero 토큰을 우선한다.
 
-**`button-secondary-pill`** — the soft lavender alternative.
-- Background `{colors.canvas-lavender}`, text `{colors.ink}`, padding `10px 30px`, same pill geometry. Used as the second action beside the primary aubergine pill.
+### 4.5 Shape and Elevation
 
-**`button-outline-aubergine`** — outline variant on white surfaces.
-- Background `{colors.canvas}`, text `{colors.primary}`, 2px solid `{colors.primary}` border, same pill shape.
+| 역할 | CSS 토큰 | 값 |
+|---|---|---:|
+| Action | `--editorial-radius-action` | `4px` |
+| Card | `--editorial-radius-card` | `10px`, Desktop `13px` |
+| Pill | `--editorial-radius-pill` | `999px` |
 
-**`button-outline-on-aubergine`** — outline on aubergine canvas.
-- Background `{colors.surface-aubergine}` (transparent over the surface), text `{colors.on-primary}`, 2px solid `{colors.on-primary}` border, same pill shape.
+- CTA는 약간 각지고, 콘텐츠 카드는 부드럽고, 계정·상태만 Pill을 사용한다.
+- Divider는 기본 1px, 주요 내비게이션 경계는 2px까지 허용한다.
+- Shadow는 카드와 Dialog처럼 계층 구분이 필요한 요소에만 낮게 적용한다.
+- Glassmorphism, 강한 Gradient Shadow와 과도한 부유 효과는 사용하지 않는다.
 
-### Cards & Containers
+### 4.6 Motion
 
-**`card-pricing`** — standard pricing tier card.
-- Background `{colors.canvas}`, padding `{spacing.xxl}+` (32px), rounded `{rounded.xl}` 16px, 1px `{colors.hairline}` border. Title in `{typography.heading-lg}`, price in `{typography.display-md}`, body in `{typography.body-md}`, CTA pinned to bottom as `button-primary-pill`.
+| CSS 토큰 | 값 |
+|---|---:|
+| `--editorial-motion-duration` | `220ms` |
+| `--editorial-motion-ease` | `cubic-bezier(0, 0, .58, 1)` |
 
-**`card-pricing-featured`** — the inverted aubergine featured tier.
-- Background `{colors.surface-aubergine}`, text `{colors.on-primary}`, otherwise identical to `card-pricing`. The aubergine fill is the brand's signature featured-tier choice.
+Motion은 빠르게 튀지 않고 짧고 차분해야 한다. Hover 이동은 3px, 이미지 확대는 1.02, 화살표 이동은 4px을 상한으로 삼는다. `prefers-reduced-motion`에서는 비필수 이동을 제거한다.
 
-**`card-feature-cream`** — feature explanation card on the cream track.
-- Background `{colors.canvas-cream}`, text `{colors.ink}`, rounded `{rounded.xl}`, padding 32px.
+## 5. Components
 
-**`card-aubergine-band`** — large horizontal band card with aubergine fill, often containing the closing CTA of a marketing page.
-- Background `{colors.surface-aubergine}`, text `{colors.on-primary}`, padding 48px, rounded `{rounded.xl}` 16px.
+### Header
 
-**`card-stat`** — statistics callout card.
-- Background `{colors.canvas}`, text `{colors.primary}` rendered in `{typography.display-lg}` (50px aubergine numeral). Holds a single percentage/number with a small caption underneath.
+- Brand Row와 Category Navigation의 두 단 구조를 사용한다.
+- Header에서는 로고와 Serif Wordmark가 서로 경쟁하지 않도록 크기 위계를 유지한다.
+- About, Book Fairs, Contact는 Category와 구분되는 Utility Navigation으로 제공한다.
+- Sticky Header를 도입할 경우 스크롤 상태의 전체 높이는 88~104px로 축소한다.
 
-### Inputs & Forms
+### Category Navigation
 
-**`text-input`** — standard form field.
-- Background `{colors.canvas}`, text `{colors.ink}`, type `{typography.body-md}`, padding `10px 12px`, rounded `{rounded.sm}` 4px, 1px `{colors.hairline}` border.
+- 다섯 카테고리는 동일한 폭과 리듬을 갖는다.
+- 현재 Active State는 Primary Ink Fill과 흰색 텍스트를 표준으로 한다.
+- Hover는 구조를 움직이지 않고 텍스트 또는 작은 Brand Green 신호로 표현한다.
+- Focus indicator는 색상만으로 표시하지 않고 명확한 outline을 제공한다.
 
-### Navigation
+### Audience Filter
 
-**`nav-bar-light`** — top nav across all marketing pages.
-- Background `{colors.canvas}`, text `{colors.ink}`, padding `{spacing.lg} {spacing.xxl}`. Logo wordmark on the left, nav items center, two pill buttons on the right (`button-secondary-pill` for "Sign In", `button-primary-pill` for "Try For Free").
+- Fiction의 독자 연령 분류는 목차나 Sticky Rail이 아니라 제목 옆의 독립된 단일 선택 필터로 제공한다.
+- 옵션은 All, Early Readers, Middle Grade, Young Adult 순서를 유지한다.
+- 선택 상태는 Primary Ink 텍스트와 얇은 Primary Ink 하단선으로 표시한다.
+- Desktop에서는 제목·Divider와 같은 행에 두고, Mobile에서는 제목 아래의 가로 스크롤 행으로 전환한다.
+- 모든 화면 크기에서 필터 기능을 유지하며 Hover나 색상에만 상태 정보를 의존하지 않는다.
 
-### Pills, Tags, and Chips
+### Book Card
 
-**`pill-cap-shade`** — small all-caps pill used as eyebrow above pricing-tier titles.
-- Background `{colors.canvas-cream}`, text `{colors.ink}`, type `{typography.micro-cap}`, padding `4px 12px`, rounded `{rounded.pill}`.
+정보 순서는 다음을 유지한다.
 
-### Signature Components
+1. 표지
+2. Rights Sold / Awards 상태
+3. 카테고리
+4. 영문 제목
+5. 저자·출판사 Metadata
 
-**Pastel-Mesh Gradient Backdrop** — peach (`#fff0e6`-ish) + lavender (`#e9d8ff`) + dusty green stops blurred together behind hero bands. Implemented as a CSS radial-gradient stack, not a single image. Provides the brand's depth/luminosity without literal shadows.
+상태 태그는 최대 두 개, 고정된 높이와 간격을 사용한다. 표지 전체를 가리는 큰 Badge는 금지한다. 카드 자체보다 표지가 먼저 보이도록 그림자와 Hover를 절제한다.
 
-**Floating Product UI Mockup** — product screenshots framed in `{rounded.lg}` (12px) containers, positioned above the pastel-mesh gradient with no border or shadow. The gradient does the lifting.
+### Partner Marquee
 
-**Aubergine Footer Band** — every marketing page closes with a full-bleed `card-aubergine-band` containing a closing CTA in white type. The band height is generous (~480–600px on desktop) and reads as the page's signature.
+- 로고는 셀의 기계적 크기가 아니라 optical size로 정규화한다.
+- 원본의 흰색 박스, 내부 여백과 컬러 강도를 정리한다.
+- 양 끝이 잘리는 경우 Gradient Mask로 이동 방향을 설명한다.
+- 자동 이동은 느리고 일정하게 유지하며 Reduced Motion에서 정지한다.
 
-**`link-on-light`** — inline links in body copy on light surfaces.
-- Text `{colors.link-blue}` rendered in `{typography.body-md}`. No underline by default; underline appears on hover via the link-hover behavior.
+### Illustration
 
-**`link-on-aubergine`** — links inside aubergine surfaces.
-- Text `{colors.on-primary}` with persistent underline.
+책, 책등, 국가 간 연결선, 직선형 로고 구조와 지구의 곡선을 핵심 모티프로 사용한다. 일반적인 교육용 Stock Illustration 문법은 피한다. 볼펜 해칭과 종이 질감은 상태, Hover 또는 작은 강조에만 제한한다.
 
-**`footer-aubergine`** — site-wide footer.
-- Background `{colors.surface-aubergine}`, text `{colors.on-primary}` rendered in `{typography.caption}`, padding `{spacing.huge}+ {spacing.xxl}` (32px 24px). Holds 4–5 columns of `{colors.on-aubergine-mute}` link groups, social icons, and a small legal/copyright row at the bottom.
+## 6. Page Templates
 
-## Do's and Don'ts
+### Catalogue Template
 
-### Do
-- Reserve `{colors.primary}` aubergine for filled CTAs, the featured pricing tier, and the closing aubergine band — it's the brand's chromatic monotheism.
-- Use `{rounded.pill}` (90px) for every button across the system — never a rounded-rectangle button.
-- Pair display tiers with negative letter-spacing (`-0.768px` at 64px); the proprietary face needs the tracking pull.
-- Compose hero bands with pastel-mesh gradient backdrop + floating product UI mockup; the gradient is the depth.
-- Use `{colors.link-blue}` for inline links — it's the only chromatic departure from aubergine and is part of the brand voice.
+`Global Header → Category Title → Catalogue Grid`
 
-### Don't
-- Don't add a third accent color to the system — the aubergine + blue link combination is exhaustive.
-- Don't shrink button padding below `14px 28px` — the over-padded pill is part of the brand feel.
-- Don't render display tiers at default tracking (0) — without negative letter-spacing the headlines read loose and unedited.
-- Don't put product UI screenshots inside cards — they sit ABOVE the pastel-mesh gradient, never inside chrome.
-- Don't use aubergine for body text — it's a surface and CTA color, not a type color at body sizes.
-- Don't replace the pill shape with a square button anywhere.
+가장 높은 정보 밀도를 사용한다. 빠른 탐색과 표지 비교가 우선이다.
 
-## Responsive Behavior
+### Landing Template
 
-### Breakpoints
+`Global Header → Two-column Hero → Featured Titles → Trust Content`
 
-| Name | Width | Key Changes |
-|---|---|---|
-| Wide | ≥ 1440px | Full-bleed pastel-mesh hero; pricing 4-up |
-| Desktop | 1024–1440px | Default content max-width; pricing 4-up |
-| Tablet | 768–1023px | Pricing 2-up; product UI mockups crop to focal panel |
-| Mobile | < 768px | Pricing 1-up; hamburger nav; display-xxl drops 64 → 40px |
+중간 밀도를 사용하고 메시지와 카탈로그 진입을 균형 있게 배치한다.
 
-### Touch Targets
-- Pill buttons hit ≥ 48×48px due to the over-padded geometry. WCAG AAA compliant.
-- Form fields stay at the 44px minimum height.
+### Story / About Template
 
-### Collapsing Strategy
-- Display tiers stair-step 64 → 50 → 32 → 28 → 24 across breakpoints.
-- Pastel-mesh gradients re-tile on mobile to prevent the wash from disappearing entirely.
-- Floating product UI mockups crop to the most actionable inner panel on mobile.
-- Pricing tiers stair-step 4 → 2 → 1; aubergine featured tier stays distinguished.
-- Top nav collapses to hamburger below 768px; menu inherits canvas color.
+`Eyebrow → Editorial Heading → Description → Brand Graphic → Partner Marquee → Book Fairs`
 
-### Image Behavior
-Product UI mockups use `srcset` for desktop / tablet / mobile crops; the mobile crop centers on the most actionable inner panel rather than scaling the whole composite down.
+가장 넓은 여백과 느린 호흡을 사용한다. 페이지마다 밀도는 달라도 Color, Type, Divider와 Container 규칙은 공유한다.
 
-## Iteration Guide
+## 7. Interaction and Accessibility
 
-1. Focus on ONE component at a time.
-2. Reference component names and tokens directly (`{colors.primary}`, `{button-primary-pill}-pressed`, `{rounded.pill}`).
-3. Run `npx @google/design.md lint DESIGN.md` after edits.
-4. Add new variants as separate entries.
-5. Default body to `{typography.body-md}`; reserve `{typography.body-lg}` for marketing leads.
-6. Keep aubergine scarce — one filled aubergine button per viewport.
-7. Pair every hero band with the pastel-mesh gradient backdrop; bare-canvas heroes read as off-brand.
+- 모든 Control은 최소 44px 터치 영역을 확보한다.
+- 키보드 Focus는 항상 시각적으로 확인 가능해야 한다.
+- Hover에만 핵심 정보를 숨기지 않는다.
+- 상태는 색상 외에 텍스트나 아이콘으로도 전달한다.
+- 본문 4.5:1, 큰 텍스트와 비텍스트 핵심 요소 3:1 이상의 대비를 유지한다.
+- 움직이는 Marquee와 장식 Motion은 사용자가 줄일 수 있어야 한다.
+
+## 8. 변경 규칙
+
+1. Foundation 변경은 이 문서와 `.public-shelf` 토큰을 함께 수정한다.
+2. 단일 컴포넌트의 예외를 새 전역 규칙처럼 복제하지 않는다.
+3. 새 페이지는 Catalogue, Landing, Story 중 하나를 선택하거나 새 Template을 문서화한다.
+4. 새로운 색상·Radius·Container를 추가하기 전에 기존 의미 토큰으로 해결 가능한지 확인한다.
+5. 시각 변경은 Desktop, Tablet, Mobile과 키보드 Focus 상태를 검증한다.

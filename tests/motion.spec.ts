@@ -108,128 +108,71 @@ test.describe('book shelf motion', () => {
     await expect(page.getByRole('link', { name: /View all titles/ })).toBeVisible();
   });
 
-  test('shows the reusable audience TOC only for desktop Fiction filtering', async ({ page }) => {
+  test('shows the reusable audience filter for Fiction at every viewport', async ({ page }) => {
     await page.setViewportSize({ width: 1672, height: 900 });
     await page.goto('/');
-    await expect(page.locator('.sticky-toc')).toBeHidden();
+    await expect(page.locator('.audience-filter')).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Fictions', exact: true }).click();
-    const toc = page.locator('.sticky-toc');
-    await expect(toc).toBeVisible();
-    await expect(toc.locator('h2')).toHaveCount(0);
-    const options = toc.getByRole('button');
+    const filter = page.getByRole('group', { name: 'Fiction 독자 연령 필터' });
+    await expect(filter).toBeVisible();
+
+    const options = filter.getByRole('button');
     await expect(options).toHaveText(['All', 'Early Readers', 'Middle Grade', 'Young Adult']);
-    const initialActiveOption = toc.getByRole('button', { name: 'All', exact: true });
-    await expect(initialActiveOption).toHaveAttribute('aria-pressed', 'true');
-    await expect(initialActiveOption.locator('svg.rough-annotation path')).toHaveCount(1);
-    await expect(initialActiveOption).toHaveCSS('color', 'rgb(255, 255, 255)');
-    await expect.poll(() => initialActiveOption.locator('svg.rough-annotation path').evaluate(
-      (path) => Number.parseFloat(getComputedStyle(path).strokeDashoffset),
-    )).toBe(0);
-    await expect(toc).not.toContainText(/총\s*\d+권/);
-    await expect(toc).toHaveCSS('position', 'sticky');
-    await expect(toc).toHaveCSS('top', '16px');
+    const all = filter.getByRole('button', { name: 'All', exact: true });
+    await expect(all).toHaveAttribute('aria-pressed', 'true');
+    await expect(all).toHaveCSS('border-bottom-color', 'rgb(55, 81, 95)');
+    await expect(all).toHaveCSS('color', 'rgb(55, 81, 95)');
+    await expect(filter.locator('svg.rough-annotation')).toHaveCount(0);
     await expect(page.locator('.book-card')).toHaveCount(5, { timeout: 10_000 });
 
-    const middleGrade = toc.getByRole('button', { name: 'Middle Grade', exact: true });
+    const middleGrade = filter.getByRole('button', { name: 'Middle Grade', exact: true });
     await middleGrade.click();
-    await expect(middleGrade.locator('svg.rough-annotation')).toHaveCount(1);
-    const highlight = await middleGrade.evaluate((button) => {
-      const svg = button.querySelector<SVGSVGElement>('svg.rough-annotation')!;
-      const target = button.querySelector<HTMLElement>('.sticky-toc-highlight-target')!;
-      const paths = Array.from(svg.querySelectorAll<SVGPathElement>('path'));
-      const path = paths[0]!;
-      return {
-        pathCount: paths.length,
-        direction: path.getPointAtLength(0).x < path.getPointAtLength(path.getTotalLength()).x,
-        stroke: getComputedStyle(path).stroke,
-        strokeWidth: Number.parseFloat(getComputedStyle(path).strokeWidth),
-        dashArray: getComputedStyle(path).strokeDasharray,
-        animationDuration: Number.parseFloat(getComputedStyle(path).animationDuration),
-        shelfAnimationCount: document.querySelector<HTMLElement>('.grid')?.getAnimations().length,
-        animationName: getComputedStyle(path).animationName,
-        svgBeforeTarget: svg.nextElementSibling === target,
-        maskCount: button.querySelectorAll('mask, filter, image').length,
-      };
-    });
-    expect(highlight.pathCount).toBe(1);
-    expect(highlight.direction).toBe(true);
-    expect(highlight.stroke).toBe('rgb(55, 81, 95)');
-    expect(highlight.strokeWidth).toBeGreaterThan(50);
-    expect(highlight.dashArray).not.toBe('none');
-    expect(highlight.animationDuration).toBe(.56);
-    expect(highlight.shelfAnimationCount).toBe(0);
-    expect(highlight.animationName).toBe('rough-notation-dash');
-    expect(highlight.svgBeforeTarget).toBe(true);
-    expect(highlight.maskCount).toBe(0);
-    await expect(middleGrade).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expect(middleGrade).toHaveAttribute('aria-pressed', 'true');
+    await expect(middleGrade).toHaveCSS('border-bottom-color', 'rgb(55, 81, 95)');
     await expect(page.locator('.book-card')).toHaveCount(2, { timeout: 10_000 });
     expect(await page.locator('.book-card').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-book-id')))).toEqual(['huntergirl-1', 'on-the-ball-1']);
 
-    await toc.getByRole('button', { name: 'Young Adult', exact: true }).click();
+    await filter.getByRole('button', { name: 'Young Adult', exact: true }).click();
     await expect(page.locator('.book-card')).toHaveCount(3, { timeout: 10_000 });
     expect(await page.locator('.book-card').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-book-id')))).toEqual(['sticker', 'shaker', 'baedalhee']);
 
-    await toc.getByRole('button', { name: 'All', exact: true }).click();
+    await filter.getByRole('button', { name: 'All', exact: true }).click();
     await expect(page.locator('.book-card')).toHaveCount(5, { timeout: 10_000 });
-    const tocLayout = await page.evaluate(() => {
-      const panel = document.querySelector<HTMLElement>('.sticky-toc')!;
-      const categoryButton = document.querySelector<HTMLElement>('.public-category-navigation button.active')!;
-      const active = panel.querySelector<HTMLElement>('button.active')!;
-      const firstCards = Array.from(document.querySelectorAll<HTMLElement>('.book-card')).slice(0, 4);
-      const cardLefts = firstCards.map((card) => Math.round(card.getBoundingClientRect().left));
-      const panelRect = panel.getBoundingClientRect();
+    const desktopLayout = await page.evaluate(() => {
+      const heading = document.querySelector<HTMLElement>('.public-featured-heading')!;
+      const title = heading.querySelector<HTMLElement>('h2')!;
+      const filterElement = heading.querySelector<HTMLElement>('.audience-filter')!;
+      const firstCards = Array.from(document.querySelectorAll<HTMLElement>('.book-card')).slice(0, 5);
       return {
-        gridColumns: getComputedStyle(document.querySelector<HTMLElement>('.sticky-toc-content .grid')!).gridTemplateColumns.split(' ').length,
-        panelWidth: Math.round(panelRect.width),
-        panelHeight: Math.round(panelRect.height),
-        panelBackground: getComputedStyle(panel).backgroundColor,
-        tocTypography: {
-          fontFamily: getComputedStyle(active).fontFamily,
-          fontSize: getComputedStyle(active).fontSize,
-          fontWeight: getComputedStyle(active).fontWeight,
-          letterSpacing: getComputedStyle(active).letterSpacing,
-        },
-        categoryTypography: {
-          fontFamily: getComputedStyle(categoryButton).fontFamily,
-          fontSize: getComputedStyle(categoryButton).fontSize,
-          fontWeight: getComputedStyle(categoryButton).fontWeight,
-          letterSpacing: getComputedStyle(categoryButton).letterSpacing,
-        },
-        activeHeight: Math.round(active.getBoundingClientRect().height),
-        activeBackground: getComputedStyle(active).backgroundColor,
-        contentGap: Math.round(firstCards[0]!.getBoundingClientRect().left - panelRect.right),
-        firstCardLeft: Math.round(firstCards[0]!.getBoundingClientRect().left),
-        expectedRailLeft: Math.round((window.innerWidth - 1020) / 2),
+        filterPosition: getComputedStyle(filterElement).position,
+        titleCenter: Math.round(title.getBoundingClientRect().top + title.getBoundingClientRect().height / 2),
+        filterCenter: Math.round(filterElement.getBoundingClientRect().top + filterElement.getBoundingClientRect().height / 2),
         cardTops: firstCards.map((card) => Math.round(card.getBoundingClientRect().top)),
-        cardGaps: cardLefts.slice(1).map((left, index) => left - cardLefts[index]!),
+        cardWidths: firstCards.map((card) => Math.round(card.getBoundingClientRect().width)),
         hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       };
     });
-    expect(tocLayout.gridColumns).toBe(4);
-    expect(tocLayout.panelWidth).toBe(190);
-    expect(tocLayout.panelHeight).toBe(318);
-    expect(tocLayout.panelBackground).toBe('rgb(240, 238, 233)');
-    expect(tocLayout.tocTypography).toEqual(tocLayout.categoryTypography);
-    expect(tocLayout.activeHeight).toBe(60);
-    expect(tocLayout.activeBackground).toBe('rgba(0, 0, 0, 0)');
-    expect(tocLayout.contentGap).toBe(24);
-    expect(tocLayout.firstCardLeft).toBe(tocLayout.expectedRailLeft);
-    expect(new Set(tocLayout.cardTops).size).toBe(1);
-    expect(tocLayout.cardGaps).toEqual([260, 260, 260]);
-    expect(tocLayout.hasHorizontalOverflow).toBe(false);
+    expect(desktopLayout.filterPosition).toBe('static');
+    expect(Math.abs(desktopLayout.titleCenter - desktopLayout.filterCenter)).toBeLessThanOrEqual(1);
+    expect(new Set(desktopLayout.cardTops).size).toBe(1);
+    expect(new Set(desktopLayout.cardWidths)).toEqual(new Set([270]));
+    expect(desktopLayout.hasHorizontalOverflow).toBe(false);
 
     await page.getByRole('button', { name: 'Picture Books', exact: true }).click();
-    await expect(page.locator('.sticky-toc')).toBeHidden();
+    await expect(page.locator('.audience-filter')).toHaveCount(0);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     await page.getByRole('button', { name: 'Fictions', exact: true }).click();
-    await expect(page.locator('.sticky-toc')).toBeHidden();
-    await expect(page.locator('.book-card')).toHaveCount(5, { timeout: 10_000 });
+    const mobileFilter = page.getByRole('group', { name: 'Fiction 독자 연령 필터' });
+    await expect(mobileFilter).toBeVisible();
+    await mobileFilter.getByRole('button', { name: 'Middle Grade', exact: true }).click();
+    await expect(page.locator('.book-card')).toHaveCount(2, { timeout: 10_000 });
+    expect(await mobileFilter.evaluate((element) => element.scrollWidth >= element.clientWidth)).toBe(true);
   });
 
-  test('switches the shelf instantly when crossing the Fiction TOC boundary', async ({ page }) => {
+  test('switches the shelf instantly when crossing the Fiction filter boundary', async ({ page }) => {
     await page.goto('/');
 
     await page.getByRole('button', { name: 'Fictions', exact: true }).click();
@@ -377,7 +320,8 @@ test.describe('book shelf motion', () => {
 
     await page.mouse.move(0, 0);
     await metadataCard.focus();
-    await expect(metadataOverlay).toHaveCSS('opacity', '1');
+    await expect(metadataOverlay).toHaveCSS('opacity', '0');
+    await expect(metadataOverlay).toHaveCSS('visibility', 'hidden');
     await metadataCard.click();
 
     const dialog = page.getByRole('dialog');
@@ -388,6 +332,10 @@ test.describe('book shelf motion', () => {
     await expect(rightsSection.getByRole('heading', { name: 'Rights Sold', exact: true })).toBeVisible();
     await expect(rightsSection.locator('li')).toHaveText(['Korean', 'Japanese', 'Complex Chinese', 'English']);
     await expect(dialog.getByRole('heading', { name: '수상 및 추천', exact: true })).toBeVisible();
+    await dialog.getByRole('button', { name: '상세 닫기' }).click();
+    await expect(metadataCard).toBeFocused();
+    await expect(metadataOverlay).toHaveCSS('opacity', '0');
+    await expect(metadataOverlay).toHaveCSS('visibility', 'hidden');
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');

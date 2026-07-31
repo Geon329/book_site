@@ -9,7 +9,6 @@
     "motion": "^12.42.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "rough-notation": "^0.5.1",
     "typescript": "7.0.2",
     "vite": "8.1.5"
   },

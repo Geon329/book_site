@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import booksData from './books.json';
-import { StickyToc, type StickyTocOption } from './components/StickyToc';
+import { AudienceFilter, type AudienceFilterOption } from './components/AudienceFilter';
 import choiceMakerLogo from '../logo_02.svg';
 import editorialHero from '../item_01.png';
 import portfolioPageReference from '../portfolio_page_example.png';
@@ -82,7 +82,7 @@ const stickyNoteAssets: Readonly<Record<StickyNoteKind, string>> = {
 };
 const stickyNoteKinds: readonly StickyNoteKind[] = ['sold', 'awards', 'sold-awards'];
 const stickyNotePositions: readonly StickyNotePosition[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
-const audienceFilterOptions: readonly StickyTocOption<AudienceFilter>[] = [
+const audienceFilterOptions: readonly AudienceFilterOption<AudienceFilter>[] = [
   { value: 'all', label: 'All' },
   { value: 'early-readers', label: 'Early Readers' },
   { value: 'middle-grade', label: 'Middle Grade' },
@@ -388,6 +388,10 @@ function App() {
   const featuredShelf = <section className="public-featured" id="featured-titles" aria-labelledby="featured-title-heading">
     <div className="public-featured-heading">
       <h2 id="featured-title-heading">{selectedCategory ? publicCategoryLabel(selectedCategory) : 'Featured Titles'}</h2>
+      {selectedCategory === '픽션' && <>
+        <span className="public-featured-divider" aria-hidden="true" />
+        <AudienceFilter label="Fiction 독자 연령 필터" options={audienceFilterOptions} value={audienceFilter} onChange={setAudienceFilter} />
+      </>}
       {!selectedCategory && <>
         <span className="public-featured-divider" aria-hidden="true" />
         <a href="#featured-titles">View all titles <span aria-hidden="true">→</span></a>
@@ -405,7 +409,7 @@ function App() {
               ? <CompanyPortfolio />
               : <>
                 {!selectedCategory && <PublicHero onOpenPortfolio={() => setPublicPage('portfolio')} />}
-                <StickyToc active={selectedCategory === '픽션'} title={publicCategoryLabel(selectedCategory ?? '픽션')} options={audienceFilterOptions} value={audienceFilter} onChange={setAudienceFilter}>{featuredShelf}</StickyToc>
+                {featuredShelf}
               </>}
           </PageFrame>
         </main>
