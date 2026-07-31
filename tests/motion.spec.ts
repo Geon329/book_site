@@ -561,14 +561,14 @@ test.describe('book shelf motion', () => {
       expect(card.objectFit).toBe('cover');
       expect(card.objectPosition).toBe('50% 50%');
     }
-    await expect(page.locator('.book-sticky-note')).toHaveCount(3);
-    await expect(page.locator('[data-sticky-note-kind="sold"]')).toHaveCount(1);
+    await expect(page.locator('.book-sticky-note')).toHaveCount(1);
+    await expect(page.locator('[data-sticky-note-kind="sold"]')).toHaveCount(0);
     await expect(page.locator('[data-sticky-note-kind="awards"]')).toHaveCount(1);
-    await expect(page.locator('[data-sticky-note-kind="sold-awards"]')).toHaveCount(1);
+    await expect(page.locator('[data-sticky-note-kind="sold-awards"]')).toHaveCount(0);
 
-    const position1Note = page.getByRole('img', { name: 'Sold and awards: Starry Cat Village 4' });
-    await expect(position1Note).toHaveAttribute('src', /sticky-label-sold-award[^/]*\.svg(?:$|\?)/);
-    const position1Card = page.locator('.book-card[data-book-id="star-cat-village-4"]');
+    const position1Note = page.getByRole('img', { name: 'Awards: You Are Gone!' });
+    await expect(position1Note).toHaveAttribute('src', /sticky-label-award[^/]*\.svg(?:$|\?)/);
+    const position1Card = page.locator('.book-card[data-book-id="you-are-gone"]');
     const position1Shell = page.locator('.book-card-shell').filter({ has: position1Card });
     const position1 = await position1Shell.evaluate((shell) => {
       const card = shell.querySelector<HTMLElement>('.book-card')!.getBoundingClientRect();
@@ -593,8 +593,8 @@ test.describe('book shelf motion', () => {
     expect(preloadFiles).toHaveLength(3);
     expect(preloadFiles.filter((path) => path.includes('sticky-label-'))).toHaveLength(3);
 
-    await page.getByRole('button', { name: 'Picture Books', exact: true }).click();
-    const note = page.getByRole('img', { name: 'Sold and awards: Starry Cat Village 4' });
+    await page.getByRole('button', { name: 'Language Learning', exact: true }).click();
+    const note = page.getByRole('img', { name: 'Sold and awards: Language Learning Swipe Test Series 1' });
     await expect(note).toBeVisible();
     expect(await note.evaluate((image: HTMLImageElement) => ({
       complete: image.complete,
@@ -608,8 +608,10 @@ test.describe('book shelf motion', () => {
       fetchPriority: 'high',
     });
   });
-  test('manages each book sticky note type and position from the central editor', async ({ page }) => {
+  test('derives sticky note artwork from awards and rights metadata', async ({ page }) => {
     await page.goto('/');
+    const publicCard = page.locator('.book-card[data-book-id="star-cat-village-4"]');
+    await expect(publicCard.locator('.book-sticky-note')).toHaveCount(0);
     await openManagement(page);
 
     const management = page.locator('.management-section').filter({ has: page.getByRole('heading', { name: '책 관리' }) });
@@ -617,33 +619,42 @@ test.describe('book shelf motion', () => {
 
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('button', { name: '편집', exact: true }).click();
-    await expect(dialog.getByLabel('스티키 노트 종류')).toHaveValue('sold-awards');
-    await expect(dialog.getByLabel('스티키 노트 위치')).toHaveValue('top-right');
+    const kind = dialog.getByLabel('스티키 노트 종류');
+    const position = dialog.getByLabel('스티키 노트 위치');
+    await expect(kind).toBeDisabled();
+    await expect(kind).toHaveValue('none');
+    await expect(position).toBeDisabled();
 
-    await dialog.getByLabel('스티키 노트 종류').selectOption('awards');
-    await dialog.getByLabel('스티키 노트 위치').selectOption('bottom-left');
+    await dialog.getByLabel('rightsSold').fill('Japan');
+    await expect(kind).toHaveValue('sold');
+    await expect(position).toBeEnabled();
+    await position.selectOption('bottom-left');
     await dialog.getByRole('button', { name: '저장', exact: true }).click();
     await dialog.getByRole('button', { name: '상세 닫기' }).click();
     await page.getByRole('button', { name: '공개 서가 보기' }).click();
+    await expect(page.getByRole('img', { name: 'Rights sold: Starry Cat Village 4' })).toHaveAttribute('data-sticky-note-position', 'bottom-left');
 
-    const note = page.getByRole('img', { name: 'Awards: Starry Cat Village 4' });
-    await expect(note).toHaveAttribute('data-sticky-note-kind', 'awards');
-    await expect(note).toHaveAttribute('data-sticky-note-position', 'bottom-left');
-    await expect(note).toHaveAttribute('src', /sticky-label-award[^/]*\.svg(?:$|\?)/);
-
-    const placement = await note.evaluate((element) => {
-      const noteRect = element.getBoundingClientRect();
-      const coverRect = element.parentElement!.querySelector<HTMLElement>('.cover-frame')!.getBoundingClientRect();
-      return {
-        attachedToLeftEdge: noteRect.left < coverRect.left && noteRect.right > coverRect.left,
-        belowCoverMidpoint: noteRect.top > coverRect.top + coverRect.height / 2,
-        insideCoverBottom: noteRect.bottom < coverRect.bottom,
-      };
-    });
-    expect(placement).toEqual({ attachedToLeftEdge: true, belowCoverMidpoint: true, insideCoverBottom: true });
-
-    await page.reload();
+    await openManagement(page);
+    await management.locator('button[data-book-id="star-cat-village-4"]').click();
+    await dialog.getByRole('button', { name: '편집', exact: true }).click();
+    await dialog.getByLabel('awards').fill('Best Picture Book');
+    await expect(kind).toHaveValue('sold-awards');
+    await dialog.getByLabel('rightsSold').fill('');
+    await expect(kind).toHaveValue('awards');
+    await dialog.getByRole('button', { name: '저장', exact: true }).click();
+    await dialog.getByRole('button', { name: '상세 닫기' }).click();
+    await page.getByRole('button', { name: '공개 서가 보기' }).click();
     await expect(page.getByRole('img', { name: 'Awards: Starry Cat Village 4' })).toHaveAttribute('data-sticky-note-position', 'bottom-left');
+
+    await openManagement(page);
+    await management.locator('button[data-book-id="star-cat-village-4"]').click();
+    await dialog.getByRole('button', { name: '편집', exact: true }).click();
+    await dialog.getByLabel('awards').fill('');
+    await expect(kind).toHaveValue('none');
+    await dialog.getByRole('button', { name: '저장', exact: true }).click();
+    await dialog.getByRole('button', { name: '상세 닫기' }).click();
+    await page.getByRole('button', { name: '공개 서가 보기' }).click();
+    await expect(publicCard.locator('.book-sticky-note')).toHaveCount(0);
   });
   test('filters cover risks and persists a manual public presentation override', async ({ page }) => {
     await page.goto('/');

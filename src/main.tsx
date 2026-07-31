@@ -156,6 +156,12 @@ function normalizeStickyNote(value: unknown): StickyNote | undefined {
   if (!stickyNoteKinds.includes(note.kind as StickyNoteKind) || !stickyNotePositions.includes(note.position as StickyNotePosition)) return undefined;
   return { kind: note.kind as StickyNoteKind, position: note.position as StickyNotePosition };
 }
+function stickyNoteKindFor(awards: readonly string[], rightsSold: readonly string[]): StickyNoteKind | undefined {
+  if (awards.length > 0 && rightsSold.length > 0) return 'sold-awards';
+  if (awards.length > 0) return 'awards';
+  if (rightsSold.length > 0) return 'sold';
+  return undefined;
+}
 function normalizeBook(book: Book, categories: string[]): Book {
   const safeCategories = Array.isArray(book.categories) ? [...new Set(book.categories.filter((item) => categories.includes(item)))] : [];
   const hasStaticCover = typeof book.cover === 'string' && /^(?:[a-z0-9][a-z0-9_-]*\/)*[a-z0-9][a-z0-9._-]*\.(?:avif|webp|png|jpe?g)$/i.test(book.cover);
@@ -163,8 +169,9 @@ function normalizeBook(book: Book, categories: string[]): Book {
   const normalized: Book = { ...book, categories: safeCategories, cover };
   normalized.awards = normalizeStringList((book as Book & { awards?: unknown }).awards);
   normalized.rightsSold = normalizeStringList((book as Book & { rightsSold?: unknown }).rightsSold);
-  const stickyNote = normalizeStickyNote((book as Book & { stickyNote?: unknown }).stickyNote);
-  if (stickyNote) normalized.stickyNote = stickyNote;
+  const configuredStickyNote = normalizeStickyNote((book as Book & { stickyNote?: unknown }).stickyNote);
+  const stickyNoteKind = stickyNoteKindFor(normalized.awards, normalized.rightsSold);
+  if (stickyNoteKind) normalized.stickyNote = { kind: stickyNoteKind, position: configuredStickyNote?.position ?? 'top-right' };
   else delete normalized.stickyNote;
   if (normalizeCoverFit(book.coverFit) === 'auto') delete normalized.coverFit;
   else normalized.coverFit = normalizeCoverFit(book.coverFit);
@@ -1081,6 +1088,8 @@ function SeriesVolumeSlider({ seriesBooks, seriesIndex, onChangeSeriesVolume }: 
 function EditView({ titleId, book, categories, setDraft, save, discard, canManageLifecycle, requestLifecycle, lifecycleLabel }: { titleId: string; book: Book; categories: string[]; setDraft: (field: keyof Book, value: Book[keyof Book]) => void; save: () => void; discard: () => void; canManageLifecycle: boolean; requestLifecycle: () => void; lifecycleLabel: string }) {
   const fields: (keyof Book)[] = ['title', 'english', 'author', 'illustrator', 'cover', 'intro', 'awards', 'rightsSold', 'isbn', 'specs', 'keywords'];
   const listFields = new Set<keyof Book>(['awards', 'rightsSold']);
+  const stickyNoteKind = stickyNoteKindFor(normalizeStringList(book.awards), normalizeStringList(book.rightsSold));
+  const stickyNotePosition = book.stickyNote?.position ?? 'top-right';
   return <form className="editor" onSubmit={(event) => { event.preventDefault(); save(); }}>
     <h2 id={titleId}>책 편집</h2>
     {fields.map((field) => {
@@ -1089,8 +1098,8 @@ function EditView({ titleId, book, categories, setDraft, save, discard, canManag
     })}
     <label className="cover-fit-select">표지 표시 방식<select value={normalizeCoverFit(book.coverFit)} onChange={(event) => setDraft('coverFit', event.target.value)}><option value="auto">자동</option><option value="cover">채우기 (cover)</option><option value="contain">맞춤 (contain)</option></select><small>자동은 프레임을 채우며, 검토·예외 상태는 여기서 표시 방식을 조정합니다.</small></label>
     <fieldset className="sticky-note-editor"><legend>스티키 노트</legend>
-      <label>종류<select aria-label="스티키 노트 종류" value={book.stickyNote?.kind ?? 'none'} onChange={(event) => { const kind = event.target.value as StickyNoteKind | 'none'; setDraft('stickyNote', kind === 'none' ? undefined : { kind, position: book.stickyNote?.position ?? 'top-right' }); }}><option value="none">사용 안 함</option><option value="sold">RIGHTS SOLD</option><option value="awards">AWARDS</option><option value="sold-awards">RIGHTS SOLD + AWARDS</option></select></label>
-      <label>위치<select aria-label="스티키 노트 위치" value={book.stickyNote?.position ?? 'top-right'} disabled={!book.stickyNote} onChange={(event) => book.stickyNote && setDraft('stickyNote', { ...book.stickyNote, position: event.target.value as StickyNotePosition })}><option value="top-left">왼쪽 위</option><option value="top-right">오른쪽 위</option><option value="bottom-left">왼쪽 아래</option><option value="bottom-right">오른쪽 아래</option></select></label>
+      <label>종류<select aria-label="스티키 노트 종류" value={stickyNoteKind ?? 'none'} disabled><option value="none">사용 안 함</option><option value="sold">RIGHTS SOLD</option><option value="awards">AWARDS</option><option value="sold-awards">RIGHTS SOLD + AWARDS</option></select><small>수상 경력과 판권 현황에 따라 자동 적용됩니다.</small></label>
+      <label>위치<select aria-label="스티키 노트 위치" value={stickyNotePosition} disabled={!stickyNoteKind} onChange={(event) => stickyNoteKind && setDraft('stickyNote', { kind: stickyNoteKind, position: event.target.value as StickyNotePosition })}><option value="top-left">왼쪽 위</option><option value="top-right">오른쪽 위</option><option value="bottom-left">왼쪽 아래</option><option value="bottom-right">오른쪽 아래</option></select></label>
     </fieldset>
     <fieldset><legend>카테고리</legend>{categories.filter((item) => item !== '보관').map((category) => <label key={category}><input type="checkbox" checked={book.categories.includes(category)} onChange={() => setDraft('categories', book.categories.includes(category) ? book.categories.filter((item) => item !== category) : [...book.categories, category])} />{publicCategoryLabel(category)}</label>)}</fieldset>
     <button>저장</button><button type="button" onClick={discard}>변경 취소</button>{canManageLifecycle && <button type="button" onClick={requestLifecycle}>{lifecycleLabel}</button>}
