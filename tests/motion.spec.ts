@@ -591,7 +591,7 @@ test.describe('book shelf motion', () => {
 
     const preloadFiles = await page.locator('link[rel="preload"][as="image"]').evaluateAll((links) => links.map((link) => new URL((link as HTMLLinkElement).href).pathname));
     expect(preloadFiles).toHaveLength(3);
-    expect(preloadFiles.filter((path) => /note_(?:AWARDS|SOLO|Combine_7)[^/]*\.png$/.test(path))).toHaveLength(3);
+    expect(preloadFiles.filter((path) => path.includes('sticky-label-'))).toHaveLength(3);
 
     await page.getByRole('button', { name: 'Picture Books', exact: true }).click();
     const note = page.getByRole('img', { name: 'Sold and awards: Starry Cat Village 4' });
@@ -629,7 +629,7 @@ test.describe('book shelf motion', () => {
     const note = page.getByRole('img', { name: 'Awards: Starry Cat Village 4' });
     await expect(note).toHaveAttribute('data-sticky-note-kind', 'awards');
     await expect(note).toHaveAttribute('data-sticky-note-position', 'bottom-left');
-    await expect(note).toHaveAttribute('src', /note_AWARDS[^/]*\.png(?:$|\?)/);
+    await expect(note).toHaveAttribute('src', /sticky-label-award[^/]*\.svg(?:$|\?)/);
 
     const placement = await note.evaluate((element) => {
       const noteRect = element.getBoundingClientRect();
