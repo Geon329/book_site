@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Diagonal Pen Fill Button</title>
+  <style>
+    :root {
+      --paper: #f0eee9;
+      --ink: #37515f;
+      --button-w: 300px;
+      --button-h: 64px;
+      --radius: 999px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Pretendard, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .demo {
+      display: grid;
+      gap: 20px;
+      justify-items: center;
+      padding: 40px;
+    }
+
+    .pen-button {
+      position: relative;
+      isolation: isolate;
+      width: min(var(--button-w), calc(100vw - 48px));
+      height: var(--button-h);
+      padding: 0;
+      overflow: hidden;
+      border: 1.5px solid var(--ink);
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .pen-button__ink {
+      position: absolute;
+      z-index: -1;
+      inset: -2px;
+      width: calc(100% + 4px);
+      height: calc(100% + 4px);
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .ink-stroke {
+      fill: none;
+      stroke: var(--ink);
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+      vector-effect: non-scaling-stroke;
+      transition-property: stroke-dashoffset;
+      transition-duration: var(--duration, 150ms);
+      transition-delay: var(--delay, 0ms);
+      transition-timing-function: cubic-bezier(.62, 0, .28, 1);
+    }
+
+    .pen-button.is-filled .ink-stroke {
+      stroke-dashoffset: 0;
+    }
+
+    .pen-button__label {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 19px;
+      font-weight: 600;
+      letter-spacing: .025em;
+      pointer-events: none;
+    }
+
+    .pen-button__label--base {
+      color: var(--ink);
+    }
+
+    .pen-button__label--filled {
+      color: var(--paper);
+      clip-path: inset(0 100% 0 0);
+      transition: clip-path 650ms cubic-bezier(.62, 0, .28, 1);
+    }
+
+    .pen-button.is-filled .pen-button__label--filled {
+      clip-path: inset(0 0 0 0);
+    }
+
+    .pen-button:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--ink) 25%, transparent);
+      outline-offset: 5px;
+    }
+
+    .hint {
+      margin: 0;
+      font-size: 13px;
+      opacity: .7;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ink-stroke,
+      .pen-button__label--filled {
+        transition-duration: 1ms !important;
+        transition-delay: 0ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="demo">
+    <button class="pen-button" type="button" aria-pressed="false">
+      <svg
+        class="pen-button__ink"
+        viewBox="0 0 304 68"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <defs>
+          <clipPath id="button-clip">
+            <rect x="2" y="2" width="300" height="64" rx="32" />
+          </clipPath>
+        </defs>
+        <g id="stroke-layer" clip-path="url(#button-clip)"></g>
+      </svg>
+
+      <span class="pen-button__label pen-button__label--base">View Books</span>
+      <span class="pen-button__label pen-button__label--filled">View Books</span>
+    </button>
+
+    <p class="hint">클릭하면 / 사선 획이 왼쪽에서 오른쪽으로 채워집니다.</p>
+  </main>
+
+  <script>
+    const NS = "http://www.w3.org/2000/svg";
+    const button = document.querySelector(".pen-button");
+    const layer = document.querySelector("#stroke-layer");
+
+    const WIDTH = 304;
+    const HEIGHT = 68;
+    const X_STEP = 3.15;       // 작을수록 더 촘촘하게 채워짐
+    const SLANT = 29;          // / 사선의 가로 이동량
+    const TOTAL_SWEEP = 610;   // 전체 왼쪽→오른쪽 진행 시간
+
+    // 매번 같은 질감이 나오도록 작은 결정론적 난수 사용
+    function noise(index, salt = 0) {
+      const value = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
+      return value - Math.floor(value);
+    }
+
+    let index = 0;
+
+    // 각 X 위치마다 살짝 겹치는 두 개의 획을 만들어 볼펜 압력 편차를 표현한다.
+    for (let x = -SLANT - 4; x <= WIDTH + 4; x += X_STEP) {
+      for (let pass = 0; pass < 2; pass += 1) {
+        const n1 = noise(index, 1);
+        const n2 = noise(index, 2);
+        const n3 = noise(index, 3);
+
+        const startX = x + (pass * 0.7) + (n1 - 0.5) * 1.35;
+        const endX = startX + SLANT + (n2 - 0.5) * 2.4;
+
+        // 아래-왼쪽에서 위-오른쪽으로 그려지는 / 방향의 살짝 휘어진 획
+        const d = [
+          `M ${startX.toFixed(2)} ${(HEIGHT + 7).toFixed(2)}`,
+          `C ${(startX + 8 + (n2 - 0.5) * 2).toFixed(2)} 48,`,
+          `${(endX - 8 + (n3 - 0.5) * 2).toFixed(2)} 18,`,
+          `${endX.toFixed(2)} -7`
+        ].join(" ");
+
+        const path = document.createElementNS(NS, "path");
+        path.setAttribute("class", "ink-stroke");
+        path.setAttribute("pathLength", "1");
+        path.setAttribute("d", d);
+        path.setAttribute("stroke-width", (1.4 + n1 * 1.15).toFixed(2));
+        path.setAttribute("opacity", (0.54 + n2 * 0.38).toFixed(2));
+
+        // 핵심: 획 모양은 사선이지만, 지연 시간은 X좌표만 기준으로 계산한다.
+        const progress = Math.max(0, Math.min(1, (x + SLANT) / (WIDTH + SLANT)));
+        const delay = progress * TOTAL_SWEEP + pass * 16 + (n3 - 0.5) * 12;
+        const duration = 112 + n2 * 72;
+
+        path.style.setProperty("--delay", `${Math.max(0, delay).toFixed(0)}ms`);
+        path.style.setProperty("--duration", `${duration.toFixed(0)}ms`);
+
+        layer.appendChild(path);
+        index += 1;
+      }
+    }
+
+    button.addEventListener("click", () => {
+      const filled = button.classList.toggle("is-filled");
+      button.setAttribute("aria-pressed", String(filled));
+    });
+  </script>
+</body>
+</html>
