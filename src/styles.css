@@ -98,7 +98,7 @@
 }
 
 * { box-sizing: border-box; }
-html { scrollbar-gutter: stable both-edges; }
+html { scrollbar-gutter: stable; }
 body { margin: 0; background: var(--page-background); }
 button, input, textarea { font: inherit; }
 button {
@@ -1392,9 +1392,13 @@ input { min-height: 44px; padding: 0 10px; }
     padding-right: clamp(24px, 4vw, 72px);
     padding-left: clamp(24px, 4vw, 72px);
   }
+  .public-shelf .public-category-navigation {
+    width: 125vw;
+    margin-left: 0;
+  }
 
   .public-shelf .filters {
-    width: calc(100vw - 20px);
+    width: calc(125vw - 20px);
   }
 
   .public-shelf .public-hero,

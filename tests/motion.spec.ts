@@ -67,6 +67,12 @@ test.describe('book shelf motion', () => {
     expect(desktopScale.layoutWidth).toBeGreaterThan(desktopScale.viewportWidth);
     expect(desktopScale.visualWidth / desktopScale.layoutWidth).toBeCloseTo(.8, 2);
     expect(desktopScale.documentWidth).toBeLessThanOrEqual(desktopScale.viewportWidth);
+    const navigationEdges = await page.locator('.public-category-navigation').evaluate((navigation) => {
+      const rect = navigation.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, viewportWidth: window.innerWidth };
+    });
+    expect(navigationEdges.left).toBe(0);
+    expect(navigationEdges.right).toBeCloseTo(navigationEdges.viewportWidth, 0);
 
     await page.setViewportSize({ width: 640, height: 900 });
     await expect.poll(() => page.locator('.public-shelf').evaluate((shelf) => getComputedStyle(shelf).zoom)).toBe('1');
