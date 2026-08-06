@@ -33,7 +33,7 @@ async function openManagement(page: import('@playwright/test').Page) {
 
 test.describe('book shelf motion', () => {
   test('matches the editorial split layout on the splash page and enters main immediately', async ({ page }) => {
-    await page.setViewportSize({ width: 1672, height: 941 });
+    await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto('/');
 
     await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', exact: true })).toBeVisible();
@@ -50,6 +50,7 @@ test.describe('book shelf motion', () => {
       const logo = document.querySelector<HTMLElement>('.splash-logo')!;
       const logoRow = document.querySelector<HTMLElement>('.splash-logo-row')!;
       const description = document.querySelector<HTMLElement>('.splash-description-row')!;
+      const splashLayout = document.querySelector<HTMLElement>('.splash-layout')!.getBoundingClientRect();
       return {
         columns: getComputedStyle(document.querySelector('.splash-layout')!).gridTemplateColumns.split(' ').length,
         brandBeforeEvent: brand.getBoundingClientRect().right < event.getBoundingClientRect().left,
@@ -61,19 +62,29 @@ test.describe('book shelf motion', () => {
         descriptionRule: getComputedStyle(description).borderRightWidth,
         animations: document.querySelector('.splash-page')!.getAnimations({ subtree: true }).length,
         overflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        layoutWidth: Math.round(splashLayout.width),
+        layoutLeft: Math.round(splashLayout.left),
+        centered: Math.abs(splashLayout.left - (window.innerWidth - splashLayout.width) / 2) <= 1,
+        displayFont: getComputedStyle(title).fontFamily,
+        descriptionFont: getComputedStyle(document.querySelector('.splash-description')!).fontFamily,
       };
     });
     expect(layout).toEqual({
       columns: 2,
       brandBeforeEvent: true,
-      titleSize: '87.78px',
+      titleSize: '88px',
       eventSize: '210px',
-      logoWidth: 217,
+      logoWidth: 220,
       logoRule: '1px',
       brandRule: '1px',
       descriptionRule: '1px',
       animations: 0,
       overflowX: false,
+      layoutWidth: 1600,
+      layoutLeft: 160,
+      centered: true,
+      displayFont: '"Bodoni Moda", serif',
+      descriptionFont: 'Pretendard, sans-serif',
     });
 
     const enter = page.getByRole('link', { name: 'Go Main' });
@@ -591,9 +602,11 @@ test.describe('book shelf motion', () => {
 
   test('pins every local WOFF2 font to its declared release and bytes', async ({ page }) => {
     await page.goto('/#main');
-    await expect(page.locator('link[rel="preload"][as="font"]')).toHaveAttribute('href', '/fonts/cormorant-garamond-600.woff2');
-    await expect(page.locator('link[rel="preload"][as="font"]')).toHaveAttribute('type', 'font/woff2');
+    const preloadFonts = await page.locator('link[rel="preload"][as="font"]').evaluateAll((links) => links.map((link) => new URL((link as HTMLLinkElement).href).pathname));
+    expect(preloadFonts).toEqual(['/fonts/bodoni-moda-500.woff2', '/fonts/bodoni-moda-500-italic.woff2']);
     const expectedFonts = [
+      { family: 'Bodoni Moda', weight: 500, emittedLocalUrl: '/fonts/bodoni-moda-500.woff2', pinnedReleaseVersion: '5.3.0', licenseIdentifier: 'SIL-OFL-1.1', format: 'woff2', rawByteSize: 15020, sha256: 'ec5b785abb85d087b5101a74671933b1bab5f96d9d85f868cc33964e69758748' },
+      { family: 'Bodoni Moda', weight: 500, emittedLocalUrl: '/fonts/bodoni-moda-500-italic.woff2', pinnedReleaseVersion: '5.3.0', licenseIdentifier: 'SIL-OFL-1.1', format: 'woff2', rawByteSize: 17004, sha256: 'af6bca11d9b800c94351ca0fec2e6cc41839e24f12cd5350b73839cbce48b2de' },
       { family: 'Cormorant Garamond', weight: 600, emittedLocalUrl: '/fonts/cormorant-garamond-600.woff2', pinnedReleaseVersion: 'v4.002', licenseIdentifier: 'SIL-OFL-1.1', format: 'woff2', rawByteSize: 204052, sha256: 'af765967938cc1bd47f6de51c0b7992f22ebbd4b58f1fd8c1f37a3dbb80b26c3' },
       { family: 'Pretendard', weight: 400, emittedLocalUrl: '/fonts/pretendard-400.woff2', pinnedReleaseVersion: 'v1.3.9', licenseIdentifier: 'SIL-OFL-1.1', format: 'woff2', rawByteSize: 765892, sha256: 'fad853f7f47c6c8b103171e7193fa095708cdcd70850a71d93aa5379e8a61d63' },
       { family: 'Pretendard', weight: 500, emittedLocalUrl: '/fonts/pretendard-500.woff2', pinnedReleaseVersion: 'v1.3.9', licenseIdentifier: 'SIL-OFL-1.1', format: 'woff2', rawByteSize: 778432, sha256: 'd03481330eeba0659ab5b87f25ceb504a35de377dd90a0d0aba2982eb2d05e2c' },
@@ -626,6 +639,10 @@ test.describe('book shelf motion', () => {
         return document.fonts.check(`${weight} 1em "${family}"`);
       }, font)).toBe(true);
     }
+    await expect.poll(() => page.evaluate(async () => {
+      await document.fonts.load('italic 500 1em "Bodoni Moda"');
+      return document.fonts.check('italic 500 1em "Bodoni Moda"');
+    })).toBe(true);
   });
 
   test('fills public book cover frames by default on the desktop shelf', async ({ page }) => {

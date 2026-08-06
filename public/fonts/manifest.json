@@ -2,6 +2,36 @@
   "schemaVersion": 1,
   "fonts": [
     {
+      "family": "Bodoni Moda",
+      "weight": 500,
+      "style": "normal",
+      "sourceReleasePageUrl": "https://www.npmjs.com/package/@fontsource/bodoni-moda/v/5.3.0",
+      "directArchiveUrl": "https://registry.npmjs.org/@fontsource/bodoni-moda/-/bodoni-moda-5.3.0.tgz",
+      "pinnedReleaseVersion": "5.3.0",
+      "upstreamFilename": "package/files/bodoni-moda-latin-500-normal.woff2",
+      "emittedLocalUrl": "/fonts/bodoni-moda-500.woff2",
+      "format": "woff2",
+      "licenseIdentifier": "SIL-OFL-1.1",
+      "licenseSourceUrl": "https://github.com/fontsource/font-files/blob/main/fonts/google/bodoni-moda/LICENSE",
+      "rawByteSize": 15020,
+      "sha256": "ec5b785abb85d087b5101a74671933b1bab5f96d9d85f868cc33964e69758748"
+    },
+    {
+      "family": "Bodoni Moda",
+      "weight": 500,
+      "style": "italic",
+      "sourceReleasePageUrl": "https://www.npmjs.com/package/@fontsource/bodoni-moda/v/5.3.0",
+      "directArchiveUrl": "https://registry.npmjs.org/@fontsource/bodoni-moda/-/bodoni-moda-5.3.0.tgz",
+      "pinnedReleaseVersion": "5.3.0",
+      "upstreamFilename": "package/files/bodoni-moda-latin-500-italic.woff2",
+      "emittedLocalUrl": "/fonts/bodoni-moda-500-italic.woff2",
+      "format": "woff2",
+      "licenseIdentifier": "SIL-OFL-1.1",
+      "licenseSourceUrl": "https://github.com/fontsource/font-files/blob/main/fonts/google/bodoni-moda/LICENSE",
+      "rawByteSize": 17004,
+      "sha256": "af6bca11d9b800c94351ca0fec2e6cc41839e24f12cd5350b73839cbce48b2de"
+    },
+    {
       "family": "Cormorant Garamond",
       "weight": 600,
       "sourceReleasePageUrl": "https://github.com/CatharsisFonts/Cormorant/releases/tag/v4.002",

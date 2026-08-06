@@ -99,6 +99,7 @@
 
 * { box-sizing: border-box; }
 html { scrollbar-gutter: stable; }
+html:has(.splash-page) { scrollbar-gutter: auto; }
 body { margin: 0; background: var(--page-background); }
 button, input, textarea { font: inherit; }
 button {
@@ -122,7 +123,7 @@ input { min-height: 44px; padding: 0 10px; }
   --splash-ink: #37515F;
   --splash-line: #D8D3CC;
   --splash-green: #619F3C;
-  --splash-display: 'Cormorant Garamond', serif;
+  --splash-display: 'Bodoni Moda', serif;
   --splash-ui: 'Pretendard', sans-serif;
   display: flex;
   min-height: 100dvh;
@@ -132,9 +133,18 @@ input { min-height: 44px; padding: 0 10px; }
   background: var(--page-background);
   color: var(--splash-ink);
   font-family: var(--splash-ui);
+  font-synthesis: none;
+}
+.splash-fair-label,
+.splash-layout,
+.splash-footer {
+  width: 100%;
+  max-width: 1600px;
+  margin-right: auto;
+  margin-left: auto;
 }
 .splash-fair-label {
-  margin: 0;
+  margin: 0 auto;
   padding-left: 14px;
   border-left: 3px solid var(--splash-green);
   font-size: 13px;
@@ -174,7 +184,7 @@ input { min-height: 44px; padding: 0 10px; }
   margin: 22px 0 0 10px;
   font-family: var(--splash-display);
   font-size: clamp(66px, 5.25vw, 88px);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -.045em;
   line-height: .88;
 }
@@ -203,10 +213,10 @@ input { min-height: 44px; padding: 0 10px; }
 }
 .splash-description {
   margin: 0;
-  font-family: var(--splash-display);
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 1.38;
+  font-family: var(--splash-ui);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.55;
 }
 .splash-cta {
   display: inline-flex;
@@ -218,7 +228,7 @@ input { min-height: 44px; padding: 0 10px; }
   color: var(--splash-ink);
   font-family: var(--splash-display);
   font-size: 47px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1;
   text-decoration: none;
 }
@@ -247,7 +257,7 @@ input { min-height: 44px; padding: 0 10px; }
   color: var(--splash-ink);
   font-family: var(--splash-display);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: .08em;
   white-space: nowrap;
 }
