@@ -52,6 +52,25 @@ test.describe('book shelf motion', () => {
     await expect(page.locator('.book-card')).toHaveCount(3);
     expect(await page.locator('.book-card').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-book-id')))).toEqual(['cosmoswek-1', 'science-explorers-17', 'tomorrow-too']);
   });
+  test('renders the desktop shelf at an 80 percent page scale', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+
+    const desktopScale = await page.locator('.public-shelf').evaluate((shelf) => ({
+      zoom: getComputedStyle(shelf).zoom,
+      layoutWidth: shelf.clientWidth,
+      visualWidth: shelf.getBoundingClientRect().width,
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+    }));
+    expect(desktopScale.zoom).toBe('0.8');
+    expect(desktopScale.layoutWidth).toBeGreaterThan(desktopScale.viewportWidth);
+    expect(desktopScale.visualWidth / desktopScale.layoutWidth).toBeCloseTo(.8, 2);
+    expect(desktopScale.documentWidth).toBeLessThanOrEqual(desktopScale.viewportWidth);
+
+    await page.setViewportSize({ width: 640, height: 900 });
+    await expect.poll(() => page.locator('.public-shelf').evaluate((shelf) => getComputedStyle(shelf).zoom)).toBe('1');
+  });
   test('renders the public editorial shelf with its two-band header and English category filtering', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/');
