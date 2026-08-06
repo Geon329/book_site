@@ -32,61 +32,71 @@ async function openManagement(page: import('@playwright/test').Page) {
 }
 
 test.describe('book shelf motion', () => {
-  test('shows the splash page on root visits and enters the main page immediately', async ({ page }) => {
+  test('matches the editorial split layout on the splash page and enters main immediately', async ({ page }) => {
     await page.setViewportSize({ width: 1672, height: 941 });
     await page.goto('/');
-    const sequence = await page.evaluate(() => {
-      const delay = (selector: string) => getComputedStyle(document.querySelector(selector)!).animationDelay;
-      return {
-        logo: delay('.splash-logo'),
-        brand: delay('.splash-content h1'),
-        description: delay('.splash-description'),
-        cta: delay('.splash-cta'),
-        fair: delay('.splash-fair-label'),
-        footer: delay('.splash-earth-icon'),
-        verticalLine: getComputedStyle(document.querySelector('.splash-page')!, '::before').animationDelay,
-        verticalLineDuration: getComputedStyle(document.querySelector('.splash-page')!, '::before').animationDuration,
-        horizontalLine: delay('.splash-footer-rule'),
-        horizontalLineDuration: getComputedStyle(document.querySelector('.splash-footer-rule')!).animationDuration,
-      };
-    });
-    expect(sequence).toEqual({
-      logo: '0.1s',
-      brand: '0.78s',
-      description: '1.48s',
-      cta: '1.48s',
-      fair: '3.72s',
-      footer: '3.78s',
-      verticalLine: '2.15s',
-      verticalLineDuration: '1.8s',
-      horizontalLine: '2.15s',
-      horizontalLineDuration: '1.8s',
-    });
 
     await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', exact: true })).toBeVisible();
     await expect(page.getByText('FRANKFURT BOOK FAIR 2026')).toBeVisible();
+    await expect(page.getByText('10.7 ~ 10', { exact: true })).toBeVisible();
+    await expect(page.getByText('HALL 4.2', { exact: true })).toBeVisible();
+    await expect(page.getByText('C11 / C9', { exact: true })).toBeVisible();
     await expect(page.locator('svg[data-icon="earth"]')).toBeVisible();
-    const enter = page.getByRole('link', { name: /Explore Our 2026 Frankfurt Book Fair Exhibit Titles/ });
-    await expect(enter).toHaveAttribute('href', '#main');
-    await expect(page.locator('.public-shelf')).toHaveCount(0);
-    await enter.click();
 
+    const layout = await page.evaluate(() => {
+      const brand = document.querySelector<HTMLElement>('.splash-brand-panel')!;
+      const event = document.querySelector<HTMLElement>('.splash-event-details')!;
+      const title = document.querySelector<HTMLElement>('.splash-brand-panel h1')!;
+      const logo = document.querySelector<HTMLElement>('.splash-logo')!;
+      const logoRow = document.querySelector<HTMLElement>('.splash-logo-row')!;
+      const description = document.querySelector<HTMLElement>('.splash-description-row')!;
+      return {
+        columns: getComputedStyle(document.querySelector('.splash-layout')!).gridTemplateColumns.split(' ').length,
+        brandBeforeEvent: brand.getBoundingClientRect().right < event.getBoundingClientRect().left,
+        titleSize: getComputedStyle(title).fontSize,
+        eventSize: getComputedStyle(event).fontSize,
+        logoWidth: Math.round(logo.getBoundingClientRect().width),
+        logoRule: getComputedStyle(logoRow).borderBottomWidth,
+        brandRule: getComputedStyle(brand).borderLeftWidth,
+        descriptionRule: getComputedStyle(description).borderRightWidth,
+        animations: document.querySelector('.splash-page')!.getAnimations({ subtree: true }).length,
+        overflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    expect(layout).toEqual({
+      columns: 2,
+      brandBeforeEvent: true,
+      titleSize: '87.78px',
+      eventSize: '210px',
+      logoWidth: 217,
+      logoRule: '1px',
+      brandRule: '1px',
+      descriptionRule: '1px',
+      animations: 0,
+      overflowX: false,
+    });
+
+    const enter = page.getByRole('link', { name: 'Go Main' });
+    await expect(enter).toHaveAttribute('href', '#main');
+    await enter.click();
     await expect(page).toHaveURL(/#main$/);
     await expect(page.locator('.public-shelf')).toBeVisible();
-
-    await page.goto('/');
-    await expect(page.locator('.splash-page')).toBeVisible();
   });
-  test('shows the complete splash immediately when reduced motion is requested', async ({ browser }) => {
-    const context = await browser.newContext({ reducedMotion: 'reduce' });
-    const page = await context.newPage();
+  test('stacks the splash typography without horizontal overflow on mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
 
-    await expect(page.locator('.splash-logo')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', exact: true })).toBeVisible();
-    expect(await page.locator('.splash-page').evaluate((pageElement) => pageElement.getAnimations({ subtree: true }).length)).toBe(0);
-
-    await context.close();
+    const responsive = await page.evaluate(() => {
+      const brand = document.querySelector<HTMLElement>('.splash-brand-panel')!.getBoundingClientRect();
+      const event = document.querySelector<HTMLElement>('.splash-event-details')!.getBoundingClientRect();
+      return {
+        direction: getComputedStyle(document.querySelector('.splash-layout')!).flexDirection,
+        eventBelowBrand: event.top >= brand.bottom,
+        overflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    expect(responsive).toEqual({ direction: 'column', eventBelowBrand: true, overflowX: false });
+    await expect(page.getByRole('link', { name: 'Go Main' })).toBeVisible();
   });
   test('links the full fair title back to the main page', async ({ page }) => {
     await page.goto('/#main');

@@ -124,95 +124,132 @@ input { min-height: 44px; padding: 0 10px; }
   --splash-green: #619F3C;
   --splash-display: 'Cormorant Garamond', serif;
   --splash-ui: 'Pretendard', sans-serif;
-  position: relative;
   display: flex;
   min-height: 100dvh;
   flex-direction: column;
-  padding: clamp(44px, 7.5vh, 72px) clamp(28px, 4.7vw, 80px) clamp(38px, 6.5vh, 64px);
+  padding: clamp(40px, 5.5vh, 56px) clamp(44px, 5.2vw, 88px) clamp(34px, 4.5vh, 46px);
   overflow: hidden;
   background: var(--page-background);
   color: var(--splash-ink);
   font-family: var(--splash-ui);
 }
-.splash-page::before {
-  position: absolute;
-  top: clamp(100px, 12vh, 116px);
-  bottom: clamp(128px, 16vh, 160px);
-  left: clamp(28px, 4.7vw, 80px);
-  width: 1px;
-  background: var(--splash-line);
-  content: '';
-  transform-origin: top;
-  animation: splash-draw-vertical 1.8s cubic-bezier(.12, .82, .2, 1) 2.15s both;
-}
 .splash-fair-label {
   margin: 0;
   padding-left: 14px;
   border-left: 3px solid var(--splash-green);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: .2em;
+  letter-spacing: .18em;
   line-height: 1.4;
-  animation: splash-reveal .68s cubic-bezier(.22, .7, .22, 1) 3.72s both;
 }
-.splash-content {
-  width: min(100%, 680px);
-  margin: clamp(120px, 15vh, 160px) 0 auto clamp(40px, 4.7vw, 80px);
+.splash-layout {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(460px, 560px) minmax(0, 1fr);
+  gap: clamp(64px, 6.5vw, 112px);
+  margin-top: 38px;
+}
+.splash-brand-panel {
+  min-width: 0;
+  margin-left: 32px;
+  padding-left: 30px;
+  border-left: 1px solid var(--splash-line);
+}
+.splash-logo-row {
+  display: flex;
+  min-height: 164px;
+  align-items: flex-start;
+  padding: 48px 0 18px 12px;
+  border-bottom: 1px solid var(--splash-line);
 }
 .splash-logo {
   display: block;
-  width: clamp(170px, 14vw, 235px);
+  width: clamp(180px, 13vw, 220px);
   height: auto;
 }
-.splash-logo { animation: splash-reveal .76s cubic-bezier(.22, .7, .22, 1) .1s both; }
-.splash-content h1 {
-  margin: clamp(26px, 4vh, 40px) 0 0;
+.splash-brand-panel h1 {
+  display: flex;
+  flex-direction: column;
+  margin: 22px 0 0 10px;
   font-family: var(--splash-display);
-  font-size: clamp(48px, 4vw, 68px);
+  font-size: clamp(66px, 5.25vw, 88px);
   font-weight: 600;
-  letter-spacing: -.035em;
+  letter-spacing: -.045em;
+  line-height: .88;
+}
+.splash-brand-panel h1 em {
+  margin-bottom: 2px;
+  font-size: .6em;
+  font-weight: 600;
   line-height: 1;
 }
-.splash-content h1 { animation: splash-reveal .78s cubic-bezier(.22, .7, .22, 1) .78s both; }
-.splash-description {
-  margin: 30px 0 0;
-  font-family: var(--splash-display);
-  font-size: clamp(18px, 1.35vw, 23px);
-  font-weight: 600;
-  line-height: 1.45;
+.splash-brand-panel h1 span { display: block; }
+.splash-description-row {
+  position: relative;
+  width: min(100%, 338px);
+  min-height: 144px;
+  margin: 28px 0 0 10px;
+  padding: 14px 38px 12px 0;
+  border-right: 1px solid var(--splash-line);
 }
-.splash-description { animation: splash-reveal .82s cubic-bezier(.22, .7, .22, 1) 1.48s both; }
+.splash-description-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50px;
+  height: 3px;
+  background: var(--splash-green);
+}
+.splash-description {
+  margin: 0;
+  font-family: var(--splash-display);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.38;
+}
 .splash-cta {
   display: inline-flex;
-  min-height: 72px;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
-  margin-top: 36px;
-  padding: 0 38px;
-  border-radius: 4px;
-  background: var(--splash-ink);
-  color: #fff;
-  font-size: 16px;
-  font-weight: 500;
+  gap: 17px;
+  margin: 3px 0 0 10px;
+  padding: 0 0 5px;
+  border-bottom: 1px solid var(--splash-line);
+  color: var(--splash-ink);
+  font-family: var(--splash-display);
+  font-size: 47px;
+  font-weight: 600;
+  line-height: 1;
   text-decoration: none;
 }
-.splash-cta { animation: splash-reveal .82s cubic-bezier(.22, .7, .22, 1) 1.48s both; }
+.splash-cta span { color: var(--splash-green); font-family: var(--splash-ui); font-size: .66em; font-weight: 400; }
+.splash-event-details {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 74px 0 0 50px;
+  font-family: var(--splash-display);
+  font-size: clamp(136px, 12.6vw, 210px);
+  font-weight: 500;
+  font-variant-numeric: lining-nums proportional-nums;
+  font-feature-settings: 'lnum' 1, 'pnum' 1;
+  letter-spacing: -.055em;
+  line-height: .93;
+  white-space: nowrap;
+}
+.splash-event-details p { margin: 0; }
 .splash-footer {
   display: flex;
   align-items: center;
   gap: 18px;
-  margin-top: 52px;
+  margin-top: 28px;
   color: var(--splash-ink);
   font-family: var(--splash-display);
   font-size: 15px;
   font-weight: 600;
   letter-spacing: .08em;
   white-space: nowrap;
-}
-.splash-footer > .splash-earth-icon,
-.splash-footer > span:not(.splash-footer-rule) {
-  animation: splash-reveal .68s cubic-bezier(.22, .7, .22, 1) 3.78s both;
 }
 .splash-earth-icon {
   display: block;
@@ -225,31 +262,25 @@ input { min-height: 44px; padding: 0 10px; }
   width: 100%;
   height: 1px;
   background: var(--splash-line);
-  transform-origin: left;
-  animation: splash-draw-horizontal 1.8s cubic-bezier(.12, .82, .2, 1) 2.15s both;
 }
-@keyframes splash-reveal {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
+@media (max-width: 1100px) {
+  .splash-layout { grid-template-columns: minmax(380px, 44%) minmax(0, 1fr); gap: 40px; }
+  .splash-brand-panel { margin-left: 12px; padding-left: 22px; }
+  .splash-brand-panel h1 { font-size: clamp(56px, 7vw, 76px); }
+  .splash-event-details { padding-left: 0; font-size: clamp(76px, 10vw, 112px); }
 }
-@keyframes splash-draw-vertical {
-  from { transform: scaleY(0); }
-  to { transform: scaleY(1); }
-}
-@keyframes splash-draw-horizontal {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
-@media (max-width: 700px) {
-  .splash-page { min-height: 100dvh; padding: 28px 20px 30px; }
-  .splash-page::before { display: none; }
+@media (max-width: 800px) {
+  .splash-page { min-height: 100dvh; padding: 28px 20px 30px; overflow-y: auto; }
   .splash-fair-label { font-size: 10px; }
-  .splash-content { margin: clamp(72px, 12vh, 110px) 0 auto; }
+  .splash-layout { display: flex; flex-direction: column; gap: 44px; margin-top: 28px; }
+  .splash-brand-panel { margin-left: 0; padding-left: 18px; }
+  .splash-logo-row { min-height: 116px; padding: 28px 0 14px 6px; }
   .splash-logo { width: 150px; }
-  .splash-content h1 { margin-top: 28px; font-size: clamp(42px, 13vw, 58px); }
-  .splash-description { margin-top: 24px; font-size: 18px; }
-  .splash-description br { display: none; }
-  .splash-cta { width: 100%; min-height: 64px; padding: 12px 20px; font-size: 14px; text-align: center; }
+  .splash-brand-panel h1 { margin-top: 18px; margin-left: 6px; font-size: clamp(52px, 16vw, 72px); }
+  .splash-description-row { min-height: 0; margin-top: 24px; margin-left: 6px; padding-bottom: 18px; }
+  .splash-description { font-size: 17px; }
+  .splash-cta { margin-top: 18px; margin-left: 6px; font-size: 38px; }
+  .splash-event-details { padding: 0 0 0 24px; font-size: clamp(58px, 18vw, 92px); }
   .splash-footer { gap: 12px; margin-top: 48px; font-size: 13px; white-space: normal; }
   .splash-earth-icon { width: 28px; height: 28px; flex-basis: 28px; }
 }
