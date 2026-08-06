@@ -1079,65 +1079,6 @@ input { min-height: 44px; padding: 0 10px; }
 }
 
 
-.portfolio-partners {
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
-  padding: 34px 0;
-  border-top: 1px solid var(--editorial-line);
-  border-bottom: 1px solid var(--editorial-line);
-  background: rgb(251 250 247 / .42);
-  overflow: hidden;
-}
-
-.partner-marquee {
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
-}
-
-.partner-marquee-track {
-  display: flex;
-  width: max-content;
-  animation: partner-marquee 32s linear infinite;
-}
-
-.partner-marquee-group {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.partner-card {
-  display: grid;
-  grid-template-rows: 50px auto;
-  gap: 12px;
-  place-items: center;
-  min-width: 196px;
-  padding: 0 28px;
-  border-right: 1px solid var(--editorial-line);
-}
-
-.partner-card svg {
-  display: block;
-  width: 126px;
-  height: 50px;
-}
-
-.partner-card span {
-  color: var(--editorial-muted);
-  font-family: var(--editorial-font-ui);
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: .04em;
-  text-align: center;
-  white-space: nowrap;
-}
-
-@keyframes partner-marquee {
-  to { transform: translateX(-50%); }
-}
-
 .portfolio-fairs {
   padding: var(--editorial-section-space-md) 24px 80px;
 }
@@ -1281,9 +1222,6 @@ input { min-height: 44px; padding: 0 10px; }
   .portfolio-intro-copy h2 { font-size: clamp(38px, 11vw, 48px); white-space: normal; }
   .portfolio-intro > img { justify-self: start; width: 190px; }
   .portfolio-desktop-break { display: none; }
-  .portfolio-partners { margin-left: calc(50% - 50vw); }
-  .partner-card { grid-template-rows: 38px auto; min-width: 164px; padding: 0 20px; }
-  .partner-card svg { width: 102px; height: 38px; }
   .portfolio-fairs { padding: 46px 0 54px; }
   .portfolio-section-heading h2 { font-size: 34px; line-height: 1.05; }
   .fair-grid { gap: 28px 12px; }
@@ -1363,10 +1301,6 @@ input { min-height: 44px; padding: 0 10px; }
   .portfolio-intro-copy > p:last-child,
   .portfolio-section-heading > div > p:last-child { margin-top: 33px; font-size: 17.5px; line-height: 2.1; }
   .portfolio-intro > img { width: min(313px, 76%); }
-  .portfolio-partners { padding: 43px 0; }
-  .partner-card { grid-template-rows: 63px auto; gap: 15px; min-width: 245px; padding: 0 35px; }
-  .partner-card svg { width: 158px; height: 63px; }
-  .partner-card span { font-size: 12.5px; }
   .portfolio-fairs { padding: var(--editorial-section-space-lg) 30px 100px; }
   .portfolio-section-heading { margin-bottom: 45px; }
   .portfolio-section-heading h2 { font-size: clamp(43px, 4.4vw, 50px); }

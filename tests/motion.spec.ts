@@ -42,6 +42,14 @@ test.describe('book shelf motion', () => {
 
     await expect(page).toHaveURL(/\/$/);
   });
+  test('omits the partner marquee from the portfolio page', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: /Explore Our Portfolio/ }).click();
+
+    await expect(page.locator('.company-portfolio')).toBeVisible();
+    await expect(page.locator('.portfolio-partners, .partner-marquee')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Where We Meet, Connect, and Grow.' })).toBeVisible();
+  });
   test('merges educational comics and graphic novels into one category', async ({ page }) => {
     await page.goto('/');
 

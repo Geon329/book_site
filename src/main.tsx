@@ -6,7 +6,6 @@ import booksData from './books.json';
 import { AudienceFilter, type AudienceFilterOption } from './components/AudienceFilter';
 import choiceMakerLogo from '../logo_02.svg';
 import editorialHero from '../item_01.png';
-import portfolioPageReference from '../portfolio_page_example.png';
 import imageOutline from '../image-outline.png';
 import stickyNoteAwards from './assets/sticky-label-award.svg?no-inline';
 import stickyNoteSold from './assets/sticky-label-sold.svg?no-inline';
@@ -464,16 +463,6 @@ function PublicHero({ onOpenPortfolio }: { onOpenPortfolio: () => void }) {
   </section>;
 }
 
-const partners = [
-  { name: 'KODANSHA', logoCrop: [77, 526, 112, 48] },
-  { name: 'SHOGAKUKAN', logoCrop: [207, 526, 112, 48] },
-  { name: 'FAMILUS', logoCrop: [330, 526, 108, 48] },
-  { name: 'KADOKAWA', logoCrop: [455, 526, 112, 48] },
-  { name: 'HarperCollins', logoCrop: [597, 526, 112, 48] },
-  { name: 'HACHETTE LIVRE', logoCrop: [718, 526, 114, 48] },
-  { name: 'WALKER BOOKS', logoCrop: [846, 526, 58, 48] },
-  { name: 'Macmillan Children’s Books', logoCrop: [918, 526, 60, 48] },
-] as const;
 const bookFairs = [
   { name: 'Bologna Children’s Book Fair 2024', location: 'Bologna, Italy' },
   { name: 'Frankfurt Book Fair 2024', location: 'Frankfurt, Germany' },
@@ -493,21 +482,6 @@ function CompanyPortfolio() {
         <p>더초이스메이커코리아는 한국의 우수한 도서를 발굴하여<br className="portfolio-desktop-break" /> 전 세계 독자들과 연결하는 해외 저작권 중개 전문 에이전시입니다.</p>
       </div>
       <img src={choiceMakerLogo} alt="The ChoiceMaker Korea" />
-    </section>
-
-    <section className="portfolio-partners" aria-label="Our partners">
-      <div className="partner-marquee">
-        <div className="partner-marquee-track">
-          {[false, true].map((duplicate) => <div className="partner-marquee-group" aria-hidden={duplicate || undefined} key={String(duplicate)}>
-            {partners.map(({ name, logoCrop }) => <div className="partner-card" key={name}>
-              <svg viewBox={logoCrop.join(' ')} aria-hidden="true">
-                <image href={portfolioPageReference} width="1024" height="1536" />
-              </svg>
-              <span>{name}</span>
-            </div>)}
-          </div>)}
-        </div>
-      </div>
     </section>
 
     <section className="portfolio-fairs" aria-labelledby="book-fairs-heading">
