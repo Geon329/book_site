@@ -72,16 +72,16 @@ test.describe('book shelf motion', () => {
     expect(layout).toEqual({
       columns: 2,
       brandBeforeEvent: true,
-      titleSize: '88px',
-      eventSize: '210px',
-      logoWidth: 220,
+      titleSize: '100.8px',
+      eventSize: '234.24px',
+      logoWidth: 250,
       logoRule: '1px',
       brandRule: '1px',
       descriptionRule: '1px',
       animations: 0,
       overflowX: false,
-      layoutWidth: 1600,
-      layoutLeft: 160,
+      layoutWidth: 1720,
+      layoutLeft: 100,
       centered: true,
       displayFont: '"Bodoni Moda", serif',
       descriptionFont: 'Pretendard, sans-serif',
@@ -92,6 +92,39 @@ test.describe('book shelf motion', () => {
     await enter.click();
     await expect(page).toHaveURL(/#main$/);
     await expect(page.locator('.public-shelf')).toBeVisible();
+  });
+  test('keeps the splash composition fluid across browser zoom equivalents and desktop resolutions', async ({ page }) => {
+    const viewports = [
+      { width: 2560, height: 1440 },
+      { width: 2400, height: 1350 },
+      { width: 2133, height: 1200 },
+      { width: 1920, height: 1080 },
+      { width: 1745, height: 982 },
+      { width: 1536, height: 864 },
+      { width: 1440, height: 900 },
+      { width: 1280, height: 720 },
+      { width: 1024, height: 768 },
+    ];
+
+    await page.goto('/');
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      const geometry = await page.evaluate(() => {
+        const layout = document.querySelector<HTMLElement>('.splash-layout')!.getBoundingClientRect();
+        const event = document.querySelector<HTMLElement>('.splash-event-details')!;
+        return {
+          widthRatio: layout.width / window.innerWidth,
+          centered: Math.abs(layout.left - (window.innerWidth - layout.width) / 2) <= 1,
+          pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          eventOverflow: event.scrollWidth > event.clientWidth + 1,
+        };
+      });
+
+      expect(geometry.widthRatio).toBeGreaterThan(.84);
+      expect(geometry.centered).toBe(true);
+      expect(geometry.pageOverflow).toBe(false);
+      expect(geometry.eventOverflow).toBe(false);
+    }
   });
   test('stacks the splash typography without horizontal overflow on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
