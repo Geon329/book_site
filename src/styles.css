@@ -203,34 +203,12 @@ input { min-height: 44px; padding: 0 10px; }
   letter-spacing: .08em;
   white-space: nowrap;
 }
-.splash-globe {
-  position: relative;
+.splash-earth-icon {
+  display: block;
   width: 32px;
   height: 32px;
   flex: 0 0 32px;
-  overflow: hidden;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  color: transparent;
-}
-.splash-globe::before,
-.splash-globe::after {
-  position: absolute;
-  content: '';
-}
-.splash-globe::before {
-  inset: 0 8px;
-  border-right: 1px solid var(--splash-ink);
-  border-left: 1px solid var(--splash-ink);
-  border-radius: 50%;
-}
-.splash-globe::after {
-  top: 9px;
-  right: 0;
-  left: 0;
-  height: 10px;
-  border-top: 1px solid var(--splash-ink);
-  border-bottom: 1px solid var(--splash-ink);
+  fill: currentColor;
 }
 .splash-footer-rule {
   width: 100%;
@@ -248,7 +226,7 @@ input { min-height: 44px; padding: 0 10px; }
   .splash-description br { display: none; }
   .splash-cta { width: 100%; min-height: 64px; padding: 12px 20px; font-size: 14px; text-align: center; }
   .splash-footer { gap: 12px; margin-top: 48px; font-size: 13px; white-space: normal; }
-  .splash-globe { width: 28px; height: 28px; flex-basis: 28px; }
+  .splash-earth-icon { width: 28px; height: 28px; flex-basis: 28px; }
 }
 
 .public-header {

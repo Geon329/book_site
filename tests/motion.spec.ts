@@ -38,6 +38,7 @@ test.describe('book shelf motion', () => {
 
     await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', exact: true })).toBeVisible();
     await expect(page.getByText('FRANKFURT BOOK FAIR 2026')).toBeVisible();
+    await expect(page.locator('svg[data-icon="earth"]')).toBeVisible();
     const enter = page.getByRole('link', { name: /Explore Our 2026 Frankfurt Book Fair Exhibit Titles/ });
     await expect(enter).toHaveAttribute('href', '#main');
     await expect(page.locator('.public-shelf')).toHaveCount(0);
