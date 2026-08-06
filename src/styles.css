@@ -197,7 +197,7 @@ input { min-height: 44px; padding: 0 10px; }
 .splash-brand-panel h1 span { display: block; }
 .splash-description-row {
   position: relative;
-  width: min(100%, 338px);
+  width: min(100%, 500px);
   min-height: 144px;
   margin: 28px 0 0 10px;
   padding: 14px 38px 12px 0;
@@ -218,6 +218,7 @@ input { min-height: 44px; padding: 0 10px; }
   font-weight: 400;
   line-height: 1.55;
 }
+.splash-description > span { display: block; }
 .splash-cta {
   display: inline-flex;
   align-items: center;

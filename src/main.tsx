@@ -458,7 +458,7 @@ function SplashPage({ onEnter }: { onEnter: () => void }) {
         <h1 id="splash-heading" aria-label="The ChoiceMaker Korea"><em>The</em><span>ChoiceMaker</span><span>Korea</span></h1>
         <div className="splash-description-row">
           <span className="splash-description-accent" aria-hidden="true" />
-          <p className="splash-description">Connecting outstanding Korean<br />children’s and fiction titles<br />with readers and publishers<br />around the world.</p>
+          <p className="splash-description"><span>Connecting outstanding Korean children's and fiction titles</span><span>with readers and publishers around the world.</span></p>
         </div>
         <a className="splash-cta" href="#main" onClick={onEnter}>Go <span aria-hidden="true">→</span> Main</a>
       </section>

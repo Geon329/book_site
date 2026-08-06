@@ -42,6 +42,10 @@ test.describe('book shelf motion', () => {
     await expect(page.getByText('HALL 4.2', { exact: true })).toBeVisible();
     await expect(page.getByText('C11 / C9', { exact: true })).toBeVisible();
     await expect(page.locator('svg[data-icon="earth"]')).toBeVisible();
+    await expect(page.locator('.splash-description > span')).toHaveText([
+      "Connecting outstanding Korean children's and fiction titles",
+      'with readers and publishers around the world.',
+    ]);
 
     const layout = await page.evaluate(() => {
       const brand = document.querySelector<HTMLElement>('.splash-brand-panel')!;
@@ -72,6 +76,7 @@ test.describe('book shelf motion', () => {
         eventAlignItems: eventStyle.alignItems,
         eventTextAlign: eventStyle.textAlign,
         eventRightEdgesAligned: Math.max(...eventRightEdges) - Math.min(...eventRightEdges) <= 1,
+        descriptionLineCounts: Array.from(document.querySelectorAll<HTMLElement>('.splash-description > span'), (line) => Math.round(line.getBoundingClientRect().height / Number.parseFloat(getComputedStyle(line).lineHeight))),
       };
     });
     expect(layout).toEqual({
@@ -93,6 +98,7 @@ test.describe('book shelf motion', () => {
       eventAlignItems: 'flex-end',
       eventTextAlign: 'right',
       eventRightEdgesAligned: true,
+      descriptionLineCounts: [1, 1],
     });
 
     const enter = page.getByRole('link', { name: 'Go Main' });
