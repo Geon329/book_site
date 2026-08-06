@@ -35,6 +35,29 @@ test.describe('book shelf motion', () => {
   test('shows the splash page on root visits and enters the main page immediately', async ({ page }) => {
     await page.setViewportSize({ width: 1672, height: 941 });
     await page.goto('/');
+    const sequence = await page.evaluate(() => {
+      const delay = (selector: string) => getComputedStyle(document.querySelector(selector)!).animationDelay;
+      return {
+        logo: delay('.splash-logo'),
+        brand: delay('.splash-content h1'),
+        description: delay('.splash-description'),
+        cta: delay('.splash-cta'),
+        fair: delay('.splash-fair-label'),
+        footer: delay('.splash-footer'),
+        verticalLine: getComputedStyle(document.querySelector('.splash-page')!, '::before').animationDelay,
+        horizontalLine: delay('.splash-footer-rule'),
+      };
+    });
+    expect(sequence).toEqual({
+      logo: '0.08s',
+      brand: '0.38s',
+      description: '0.78s',
+      cta: '0.78s',
+      fair: '1.22s',
+      footer: '1.28s',
+      verticalLine: '1.12s',
+      horizontalLine: '1.12s',
+    });
 
     await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', exact: true })).toBeVisible();
     await expect(page.getByText('FRANKFURT BOOK FAIR 2026')).toBeVisible();
@@ -49,6 +72,17 @@ test.describe('book shelf motion', () => {
 
     await page.goto('/');
     await expect(page.locator('.splash-page')).toBeVisible();
+  });
+  test('shows the complete splash immediately when reduced motion is requested', async ({ browser }) => {
+    const context = await browser.newContext({ reducedMotion: 'reduce' });
+    const page = await context.newPage();
+    await page.goto('/');
+
+    await expect(page.locator('.splash-logo')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', exact: true })).toBeVisible();
+    expect(await page.locator('.splash-page').evaluate((pageElement) => pageElement.getAnimations({ subtree: true }).length)).toBe(0);
+
+    await context.close();
   });
   test('links the full fair title back to the main page', async ({ page }) => {
     await page.goto('/#main');
