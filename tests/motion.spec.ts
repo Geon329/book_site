@@ -51,6 +51,8 @@ test.describe('book shelf motion', () => {
       const logoRow = document.querySelector<HTMLElement>('.splash-logo-row')!;
       const description = document.querySelector<HTMLElement>('.splash-description-row')!;
       const splashLayout = document.querySelector<HTMLElement>('.splash-layout')!.getBoundingClientRect();
+      const eventStyle = getComputedStyle(event);
+      const eventRightEdges = Array.from(event.querySelectorAll('p'), (line) => line.getBoundingClientRect().right);
       return {
         columns: getComputedStyle(document.querySelector('.splash-layout')!).gridTemplateColumns.split(' ').length,
         brandBeforeEvent: brand.getBoundingClientRect().right < event.getBoundingClientRect().left,
@@ -67,6 +69,9 @@ test.describe('book shelf motion', () => {
         centered: Math.abs(splashLayout.left - (window.innerWidth - splashLayout.width) / 2) <= 1,
         displayFont: getComputedStyle(title).fontFamily,
         descriptionFont: getComputedStyle(document.querySelector('.splash-description')!).fontFamily,
+        eventAlignItems: eventStyle.alignItems,
+        eventTextAlign: eventStyle.textAlign,
+        eventRightEdgesAligned: Math.max(...eventRightEdges) - Math.min(...eventRightEdges) <= 1,
       };
     });
     expect(layout).toEqual({
@@ -85,6 +90,9 @@ test.describe('book shelf motion', () => {
       centered: true,
       displayFont: '"Bodoni Moda", serif',
       descriptionFont: 'Pretendard, sans-serif',
+      eventAlignItems: 'flex-end',
+      eventTextAlign: 'right',
+      eventRightEdgesAligned: true,
     });
 
     const enter = page.getByRole('link', { name: 'Go Main' });
@@ -112,11 +120,14 @@ test.describe('book shelf motion', () => {
       const geometry = await page.evaluate(() => {
         const layout = document.querySelector<HTMLElement>('.splash-layout')!.getBoundingClientRect();
         const event = document.querySelector<HTMLElement>('.splash-event-details')!;
+        const eventRightEdges = Array.from(event.querySelectorAll('p'), (line) => line.getBoundingClientRect().right);
         return {
           widthRatio: layout.width / window.innerWidth,
           centered: Math.abs(layout.left - (window.innerWidth - layout.width) / 2) <= 1,
           pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
           eventOverflow: event.scrollWidth > event.clientWidth + 1,
+          eventAnchoredRight: Math.abs(Math.max(...eventRightEdges) - layout.right) <= 1,
+          eventRightEdgesAligned: Math.max(...eventRightEdges) - Math.min(...eventRightEdges) <= 1,
         };
       });
 
@@ -124,6 +135,8 @@ test.describe('book shelf motion', () => {
       expect(geometry.centered).toBe(true);
       expect(geometry.pageOverflow).toBe(false);
       expect(geometry.eventOverflow).toBe(false);
+      expect(geometry.eventAnchoredRight).toBe(true);
+      expect(geometry.eventRightEdgesAligned).toBe(true);
     }
   });
   test('stacks the splash typography without horizontal overflow on mobile', async ({ page }) => {
@@ -133,13 +146,16 @@ test.describe('book shelf motion', () => {
     const responsive = await page.evaluate(() => {
       const brand = document.querySelector<HTMLElement>('.splash-brand-panel')!.getBoundingClientRect();
       const event = document.querySelector<HTMLElement>('.splash-event-details')!.getBoundingClientRect();
+      const eventStyle = getComputedStyle(document.querySelector('.splash-event-details')!);
       return {
         direction: getComputedStyle(document.querySelector('.splash-layout')!).flexDirection,
         eventBelowBrand: event.top >= brand.bottom,
         overflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        eventAlignItems: eventStyle.alignItems,
+        eventTextAlign: eventStyle.textAlign,
       };
     });
-    expect(responsive).toEqual({ direction: 'column', eventBelowBrand: true, overflowX: false });
+    expect(responsive).toEqual({ direction: 'column', eventBelowBrand: true, overflowX: false, eventAlignItems: 'flex-start', eventTextAlign: 'left' });
     await expect(page.getByRole('link', { name: 'Go Main' })).toBeVisible();
   });
   test('links the full fair title back to the main page', async ({ page }) => {
