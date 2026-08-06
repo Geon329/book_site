@@ -1028,6 +1028,28 @@ test.describe('book shelf motion', () => {
     await expect(page.getByRole('dialog')).toBeHidden();
     await expect(opener).toBeFocused();
   });
+  test('closes the detail dialog from the backdrop and uses the Reicon X control', async ({ page }) => {
+    await page.goto('/#main');
+    const opener = page.locator('.book-card').first();
+    await opener.click();
+
+    const dialog = page.getByRole('dialog');
+    const closeButton = page.getByRole('button', { name: '상세 닫기' });
+    const closeIcon = closeButton.locator('svg[data-icon="x"]');
+    await expect(closeIcon).toBeVisible();
+    await expect(closeButton).toHaveText('');
+    expect(await closeIcon.evaluate((icon) => {
+      const style = getComputedStyle(icon);
+      return { width: style.width, height: style.height, fill: style.fill };
+    })).toEqual({ width: '24px', height: '24px', fill: 'rgb(32, 43, 53)' });
+
+    await dialog.click({ position: { x: 8, y: 80 } });
+    await expect(dialog).toBeVisible();
+
+    await page.locator('.overlay').click({ position: { x: 4, y: 4 } });
+    await expect(dialog).toBeHidden();
+    await expect(opener).toBeFocused();
+  });
   test('groups shelf series and isolates volume slider gestures from popup navigation', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/#main');
