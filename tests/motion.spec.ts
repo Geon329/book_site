@@ -43,20 +43,24 @@ test.describe('book shelf motion', () => {
         description: delay('.splash-description'),
         cta: delay('.splash-cta'),
         fair: delay('.splash-fair-label'),
-        footer: delay('.splash-footer'),
+        footer: delay('.splash-earth-icon'),
         verticalLine: getComputedStyle(document.querySelector('.splash-page')!, '::before').animationDelay,
+        verticalLineDuration: getComputedStyle(document.querySelector('.splash-page')!, '::before').animationDuration,
         horizontalLine: delay('.splash-footer-rule'),
+        horizontalLineDuration: getComputedStyle(document.querySelector('.splash-footer-rule')!).animationDuration,
       };
     });
     expect(sequence).toEqual({
-      logo: '0.08s',
-      brand: '0.38s',
-      description: '0.78s',
-      cta: '0.78s',
-      fair: '1.22s',
-      footer: '1.28s',
-      verticalLine: '1.12s',
-      horizontalLine: '1.12s',
+      logo: '0.1s',
+      brand: '0.78s',
+      description: '1.48s',
+      cta: '1.48s',
+      fair: '3.72s',
+      footer: '3.78s',
+      verticalLine: '2.15s',
+      verticalLineDuration: '1.8s',
+      horizontalLine: '2.15s',
+      horizontalLineDuration: '1.8s',
     });
 
     await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', exact: true })).toBeVisible();
