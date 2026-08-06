@@ -446,7 +446,7 @@ function PageFrame({ children }: { children: React.ReactNode }) { return <div cl
 function PublicHeader({ heading, categories, selected, toggle, onOpenManagement }: { heading: React.RefObject<HTMLHeadingElement | null>; categories: string[]; selected: string[]; toggle: (category: string) => void; onOpenManagement: () => void }) {
   return <header className="public-header">
     <div className="public-header-primary">
-      <div className="public-header-brand"><img className="public-header-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" /><h1 ref={heading} tabIndex={-1}>The ChoiceMaker Korea</h1></div>
+      <a className="public-header-brand" href={import.meta.env.BASE_URL} aria-label="Main Page"><img className="public-header-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" /><h1 ref={heading} tabIndex={-1}>The ChoiceMaker Korea Selection for 2026 Frankfurt Book Fair</h1></a>
       <div className="public-header-actions">{adminDemoEnabled && <button className="admin-entry" onClick={onOpenManagement}><svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="8" r="3" /><path d="M5.5 19c.8-3.2 3-4.8 6.5-4.8s5.7 1.6 6.5 4.8" /></svg>관리자 데모</button>}</div>
     </div>
     <nav className="public-category-navigation" aria-label="도서 카테고리"><ShelfControls categories={categories} selected={selected} toggle={toggle} /></nav>

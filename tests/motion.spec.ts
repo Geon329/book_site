@@ -32,6 +32,16 @@ async function openManagement(page: import('@playwright/test').Page) {
 }
 
 test.describe('book shelf motion', () => {
+  test('links the full fair title back to the main page', async ({ page }) => {
+    await page.goto('/#featured-titles');
+
+    const mainPageLink = page.getByRole('link', { name: 'Main Page' });
+    await expect(mainPageLink).toHaveAttribute('href', '/');
+    await expect(mainPageLink.getByRole('heading', { name: 'The ChoiceMaker Korea Selection for 2026 Frankfurt Book Fair' })).toBeVisible();
+    await mainPageLink.click();
+
+    await expect(page).toHaveURL(/\/$/);
+  });
   test('renders the public editorial shelf with its two-band header and English category filtering', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/');
@@ -39,9 +49,9 @@ test.describe('book shelf motion', () => {
     await expect(page).toHaveTitle('도서전 소개');
     await expect(page.locator('.public-header-primary')).toBeVisible();
     await expect(page.locator('.public-category-navigation')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea Selection for 2026 Frankfurt Book Fair', level: 1 })).toBeVisible();
     await expect(page.getByRole('img', { name: 'The ChoiceMaker Korea', exact: true })).toBeVisible();
-    await expect(page.locator('.public-header-brand')).toHaveText('The ChoiceMaker Korea');
+    await expect(page.locator('.public-header-brand')).toHaveText('The ChoiceMaker Korea Selection for 2026 Frankfurt Book Fair');
     const headerBands = await page.locator('.public-header').evaluate((header) => {
       const primary = header.querySelector<HTMLElement>('.public-header-primary')!.getBoundingClientRect();
       const navigation = header.querySelector<HTMLElement>('.public-category-navigation')!;
