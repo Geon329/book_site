@@ -47,14 +47,13 @@ type TopLayer = { kind: 'detail'; detail: DetailState } | { kind: 'confirm'; con
 type Announcement = { sequence: number; text: string };
 
 const storageKey = 'book-margin-demo-v2';
-const catalogVersion = 5;
+const catalogVersion = 6;
 const schemaVersion = 1;
 const adminDemoEnabled = import.meta.env.DEV;
 const publicCategoryLabels: Readonly<Record<string, string>> = {
   픽션: 'Fictions',
   그림책: 'Picture Books',
-  교육만화: 'Educational Comics',
-  그래픽노블: 'Graphic Novels',
+  '코믹스·그래픽노블': 'Comics & Graphic Novels',
   언어학습: 'Language Learning',
   보관: 'Archived',
 };
@@ -69,7 +68,7 @@ const fallbackCoverTokens = { surface: '#7b6d62', ink: '#ffffff' } as const;
 const makeCover = (title: string) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800"><rect width="600" height="800" fill="${fallbackCoverTokens.surface}"/><rect x="38" y="38" width="524" height="724" fill="none" stroke="${fallbackCoverTokens.ink}" stroke-opacity=".45"/><text x="72" y="610" fill="${fallbackCoverTokens.ink}" font-family="Georgia,serif" font-size="36">${title}</text><text x="72" y="678" fill="${fallbackCoverTokens.ink}" font-family="Arial,sans-serif" font-size="16" letter-spacing="4">BOOK MARGIN</text></svg>`)}`;
 const minimumDetailTitleSize = 15;
 const seriesNavigationCooldown = 220;
-const shelfCategoryOrder = ['그림책', '픽션', '교육만화', '그래픽노블', '언어학습'];
+const shelfCategoryOrder = ['그림책', '픽션', '코믹스·그래픽노블', '언어학습'];
 const stickyNoteLabels: Readonly<Record<StickyNoteKind, string>> = {
   sold: 'Rights sold',
   awards: 'Awards',

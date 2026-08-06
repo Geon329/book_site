@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 
 const importedCatalog = {
   schemaVersion: 1,
-  catalogVersion: 5,
+  catalogVersion: 6,
   categories: ['가져오기 테스트', '보관'],
   books: [{
     id: 'catalog-imported-book',
@@ -42,6 +42,16 @@ test.describe('book shelf motion', () => {
 
     await expect(page).toHaveURL(/\/$/);
   });
+  test('merges educational comics and graphic novels into one category', async ({ page }) => {
+    await page.goto('/');
+
+    const categories = page.locator('.public-category-navigation .filters button');
+    await expect(categories).toHaveText(['Picture Books', 'Fictions', 'Comics & Graphic Novels', 'Language Learning']);
+    await page.getByRole('button', { name: 'Comics & Graphic Novels', exact: true }).click();
+
+    await expect(page.locator('.book-card')).toHaveCount(3);
+    expect(await page.locator('.book-card').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-book-id')))).toEqual(['cosmoswek-1', 'science-explorers-17', 'tomorrow-too']);
+  });
   test('renders the public editorial shelf with its two-band header and English category filtering', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/');
@@ -72,14 +82,14 @@ test.describe('book shelf motion', () => {
     expect(headerBands.navigationRule).toBe('2px solid rgb(55, 81, 95)');
     expect(headerBands.navigationTopRule).toBe('1px solid rgb(216, 211, 204)');
     expect(Math.max(...headerBands.categoryWidths) - Math.min(...headerBands.categoryWidths)).toBeLessThanOrEqual(1);
-    expect(headerBands.separators).toEqual(['16px', '16px', '16px', '16px']);
+    expect(headerBands.separators).toEqual(['16px', '16px', '16px']);
 
     const categories = page.locator('.public-category-navigation .filters button');
-    await expect(categories).toHaveText(['Picture Books', 'Fictions', 'Educational Comics', 'Graphic Novels', 'Language Learning']);
-    await expect(categories).toHaveCount(5);
+    await expect(categories).toHaveText(['Picture Books', 'Fictions', 'Comics & Graphic Novels', 'Language Learning']);
+    await expect(categories).toHaveCount(4);
 
     const initialCount = await page.locator('.book-card').count();
-    const graphicNovels = page.getByRole('button', { name: 'Graphic Novels', exact: true });
+    const graphicNovels = page.getByRole('button', { name: 'Comics & Graphic Novels', exact: true });
     await graphicNovels.click();
     await expect(graphicNovels).toHaveAttribute('aria-pressed', 'true');
     await expect(graphicNovels).toHaveCSS('background-color', 'rgb(55, 81, 95)');
@@ -87,7 +97,7 @@ test.describe('book shelf motion', () => {
     await expect(graphicNovels).toHaveCSS('background-image', 'none');
     await expect(page.locator('.public-hero')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Featured Titles', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Graphic Novels', level: 2, exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Comics & Graphic Novels', level: 2, exact: true })).toBeVisible();
     await expect(page.locator('.public-featured-divider')).toHaveCount(0);
     await expect(page.getByRole('link', { name: /View all titles/ })).toHaveCount(0);
     await expect.poll(() => page.locator('.book-card').count()).toBeGreaterThan(0);
@@ -104,7 +114,7 @@ test.describe('book shelf motion', () => {
     await expect(graphicNovels).toHaveAttribute('aria-pressed', 'false');
     await expect(pictureBooks).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.public-category-navigation [aria-pressed="true"]')).toHaveCount(1);
-    await expect(page.getByRole('heading', { name: 'Graphic Novels', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Comics & Graphic Novels', exact: true })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Picture Books', level: 2, exact: true })).toBeVisible();
 
     await pictureBooks.click();
@@ -210,7 +220,7 @@ test.describe('book shelf motion', () => {
     await openManagement(page);
 
     const categoryManagement = page.locator('.management-section').filter({ has: page.getByRole('heading', { name: '카테고리 관리' }) });
-    await expect(categoryManagement.locator('.manage-list > li > span')).toHaveText(['Picture Books', 'Fictions', 'Educational Comics', 'Graphic Novels', 'Language Learning', 'Archived (예약됨)']);
+    await expect(categoryManagement.locator('.manage-list > li > span')).toHaveText(['Picture Books', 'Fictions', 'Comics & Graphic Novels', 'Language Learning', 'Archived (예약됨)']);
 
     await categoryManagement.getByRole('button', { name: '이름 변경' }).first().click();
     await expect(categoryManagement.getByLabel('Picture Books 새 이름')).toHaveValue('Picture Books');
@@ -1006,7 +1016,7 @@ test.describe('book shelf motion', () => {
     await page.reload();
     const initialBookCount = await page.getByRole('region', { name: '책 목록' }).getByRole('button').count();
 
-    await page.getByRole('button', { name: 'Graphic Novels', exact: true }).click();
+    await page.getByRole('button', { name: 'Comics & Graphic Novels', exact: true }).click();
     await openManagement(page);
 
     const importFile = page.getByLabel(/카탈로그 JSON/);
@@ -1023,7 +1033,7 @@ test.describe('book shelf motion', () => {
     const exportPath = await download.path();
     expect(exportPath).not.toBeNull();
     const exportedCatalog = JSON.parse(await readFile(exportPath!, 'utf8'));
-    expect(exportedCatalog).toMatchObject({ schemaVersion: 1, catalogVersion: 5 });
+    expect(exportedCatalog).toMatchObject({ schemaVersion: 1, catalogVersion: 6 });
     expect(exportedCatalog.books).toHaveLength(17);
     expect(exportedCatalog.books).toContainEqual(importedCatalog.books[0]);
     await expect.poll(() => page.evaluate(() => Object.values(localStorage).some((value) => {
