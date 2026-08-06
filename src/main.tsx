@@ -1,4 +1,4 @@
-import { FormEvent, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { FormEvent, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent, useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
@@ -65,7 +65,6 @@ type CatalogDocument = { schemaVersion: number; catalogVersion: number; categori
 type PersistedStore = Store & { sourceFingerprint?: string };
 const fallbackCoverTokens = { surface: '#7b6d62', ink: '#ffffff' } as const;
 const makeCover = (title: string) => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800"><rect width="600" height="800" fill="${fallbackCoverTokens.surface}"/><rect x="38" y="38" width="524" height="724" fill="none" stroke="${fallbackCoverTokens.ink}" stroke-opacity=".45"/><text x="72" y="610" fill="${fallbackCoverTokens.ink}" font-family="Georgia,serif" font-size="36">${title}</text><text x="72" y="678" fill="${fallbackCoverTokens.ink}" font-family="Arial,sans-serif" font-size="16" letter-spacing="4">BOOK MARGIN</text></svg>`)}`;
-const minimumDetailTitleSize = 15;
 const seriesNavigationCooldown = 220;
 const shelfCategoryOrder = ['그림책', '픽션', '코믹스·그래픽노블', '언어학습'];
 const stickyNoteLabels: Readonly<Record<StickyNoteKind, string>> = {
@@ -843,55 +842,7 @@ function splitIntoParagraphs(text: string): string[] {
   return paragraphs;
 }
 function FittedDetailTitle({ id, title }: { id: string; title: string }) {
-  const heading = useRef<HTMLHeadingElement>(null);
-  useLayoutEffect(() => {
-    const node = heading.current;
-    if (!node) return;
-    let active = true;
-    let frame = 0;
-    let measuredWidth = 0;
-    const fit = (force = false) => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        if (!active) return;
-        const width = node.clientWidth;
-        if (!force && width === measuredWidth && node.dataset.titleFit) return;
-        measuredWidth = width;
-        node.style.removeProperty('font-size');
-        const sourceSize = Number.parseFloat(getComputedStyle(node).fontSize);
-        if (!width || !sourceSize) return;
-        const minimumSize = Math.min(minimumDetailTitleSize, sourceSize);
-        node.style.fontSize = `${minimumSize}px`;
-        const minimumWidth = node.scrollWidth;
-        let nextSize = minimumSize;
-        if (minimumWidth > width) {
-          nextSize = Math.max(1, minimumSize * (width - 1) / minimumWidth);
-        } else {
-          let lower = minimumSize;
-          let upper = sourceSize;
-          for (let attempt = 0; attempt < 8; attempt += 1) {
-            const candidate = (lower + upper) / 2;
-            node.style.fontSize = `${candidate}px`;
-            if (node.scrollWidth <= width) lower = candidate;
-            else upper = candidate;
-          }
-          nextSize = lower;
-        }
-        node.style.fontSize = `${nextSize}px`;
-        node.dataset.titleFit = nextSize < sourceSize ? 'scaled' : 'default';
-      });
-    };
-    const observer = new ResizeObserver(() => fit());
-    observer.observe(node);
-    void document.fonts?.ready.then(() => fit(true));
-    fit(true);
-    return () => {
-      active = false;
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [title]);
-  return <h2 ref={heading} id={id} className="detail-title">{title}</h2>;
+  return <h2 id={id} className="detail-title">{title}</h2>;
 }
 function ReadView({ book, titleId, seriesBooks, seriesIndex, onChangeSeriesVolume }: { book: Book; titleId: string; seriesBooks: Book[]; seriesIndex: number; onChangeSeriesVolume: (offset: number) => void }) {
   const credits = [

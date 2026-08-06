@@ -941,7 +941,7 @@ test.describe('book shelf motion', () => {
     expect(layout.width).toBeGreaterThanOrEqual(200);
     expect(layout.centered).toBe(true);
   });
-  test('keeps a long detail title visible across responsive widths', async ({ page }) => {
+  test('keeps a long detail title readable across responsive widths', async ({ page }) => {
     await page.setViewportSize({ width: 800, height: 844 });
     await page.goto('/#main');
     await page.locator('.book-card').first().click();
@@ -950,9 +950,52 @@ test.describe('book shelf motion', () => {
 
     for (const width of [800, 631, 596, 481, 439, 390, 320]) {
       await page.setViewportSize({ width, height: 844 });
-      await expect.poll(() => title.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-      expect(await title.evaluate((element) => getComputedStyle(element).whiteSpace)).toBe(width <= 500 ? 'normal' : 'nowrap');
+      const typography = await title.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          overflow: element.scrollWidth > element.clientWidth,
+          whiteSpace: style.whiteSpace,
+          fontSize: Number.parseFloat(style.fontSize),
+          lines: Math.round(element.getBoundingClientRect().height / Number.parseFloat(style.lineHeight)),
+        };
+      });
+      expect(typography.overflow).toBe(false);
+      expect(typography.whiteSpace).toBe('normal');
+      expect(typography.fontSize).toBeGreaterThanOrEqual(width <= 640 ? 28 : 30);
+      expect(typography.lines).toBeLessThanOrEqual(width <= 360 ? 3 : 2);
     }
+  });
+  test('uses the bundled brand typography for readable popup content', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/#main');
+    await page.locator('.book-card').first().click();
+
+    const typography = await page.getByRole('dialog').evaluate((dialog) => {
+      const style = (selector: string) => getComputedStyle(dialog.querySelector(selector)!);
+      return {
+        titleFont: style('.detail-title').fontFamily,
+        titleSize: style('.detail-title').fontSize,
+        titleTracking: style('.detail-title').letterSpacing,
+        englishFont: style('.detail-english').fontFamily,
+        bodyFont: style('.intro-copy p').fontFamily,
+        bodySize: style('.intro-copy p').fontSize,
+        bodyLineHeight: style('.intro-copy p').lineHeight,
+        provenanceSize: style('.detail-provenance').fontSize,
+        mutedColor: style('.detail-provenance').color,
+        sectionTracking: style('.intro-section h3').letterSpacing,
+      };
+    });
+
+    expect(typography.titleFont).toContain('Pretendard');
+    expect(typography.titleSize).toBe('36px');
+    expect(typography.titleTracking).toBe('-0.36px');
+    expect(typography.englishFont).toContain('Cormorant Garamond');
+    expect(typography.bodyFont).toContain('Pretendard');
+    expect(typography.bodySize).toBe('16px');
+    expect(typography.bodyLineHeight).toBe('27.2px');
+    expect(typography.provenanceSize).toBe('12px');
+    expect(typography.mutedColor).toBe('rgb(104, 112, 111)');
+    expect(typography.sectionTracking).toBe('0.24px');
   });
 
 
