@@ -297,6 +297,7 @@ function useAnnouncer() {
   }] as const;
 }
 function App() {
+  const [sitePage, setSitePage] = useState<'splash' | 'main'>(() => window.location.hash === '#main' ? 'main' : 'splash');
   const [catalog, setCatalog] = useState<CatalogState>(() => ({ store: loadStore(), selectedCategories: [] }));
   const { store, selectedCategories: selected } = catalog;
   const [surface, setSurface] = useState<'public' | 'management'>('public');
@@ -310,6 +311,11 @@ function App() {
   const priorSurface = useRef(surface);
 
   useEffect(() => { localStorage.setItem(storageKey, JSON.stringify({ ...store, sourceFingerprint })); }, [store]);
+  useEffect(() => {
+    const syncSitePage = () => setSitePage(window.location.hash === '#main' ? 'main' : 'splash');
+    window.addEventListener('hashchange', syncSitePage);
+    return () => window.removeEventListener('hashchange', syncSitePage);
+  }, []);
   useEffect(() => {
     if (priorSurface.current === surface) return;
     priorSurface.current = surface;
@@ -404,12 +410,16 @@ function App() {
     </div>
     <BookGrid books={shelfBooks} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
   </section>;
+  if (sitePage === 'splash') return <SplashPage onEnter={() => {
+    window.location.hash = 'main';
+    setSitePage('main');
+  }} />;
   return <>
     <div id="app-shell">
       {surface === 'public' ? (
         <main id="top" className={`public-shelf${selectedCategory ? ' public-shelf-category' : ''}`}>
           <PageFrame>
-            <PublicHeader heading={publicHeading} categories={store.categories} selected={selected} toggle={togglePublicCategory} onOpenManagement={() => setSurface('management')} />
+            <PublicHeader heading={publicHeading} categories={store.categories} selected={selected} toggle={togglePublicCategory} onGoMain={() => { setPublicPage('catalog'); setAudienceFilter('all'); setCatalog((current) => ({ ...current, selectedCategories: [] })); }} onOpenManagement={() => setSurface('management')} />
             {publicPage === 'portfolio'
               ? <CompanyPortfolio />
               : <>
@@ -440,11 +450,27 @@ function App() {
     </AnimatePresence>
   </>;
 }
+function SplashPage({ onEnter }: { onEnter: () => void }) {
+  return <main className="splash-page">
+    <p className="splash-fair-label">FRANKFURT BOOK FAIR 2026</p>
+    <section className="splash-content" aria-labelledby="splash-heading">
+      <img className="splash-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" />
+      <h1 id="splash-heading">The ChoiceMaker Korea</h1>
+      <p className="splash-description">Connecting outstanding Korean children’s and fiction titles<br />with readers and publishers around the world.</p>
+      <a className="splash-cta" href="#main" onClick={onEnter}>Explore Our 2026 Frankfurt Book Fair Exhibit Titles <span aria-hidden="true">→</span></a>
+    </section>
+    <footer className="splash-footer">
+      <span className="splash-globe" aria-hidden="true">◎</span>
+      <span>Global rights curation from Korea</span>
+      <span className="splash-footer-rule" aria-hidden="true" />
+    </footer>
+  </main>;
+}
 function PageFrame({ children }: { children: React.ReactNode }) { return <div className="page-frame">{children}</div>; }
-function PublicHeader({ heading, categories, selected, toggle, onOpenManagement }: { heading: React.RefObject<HTMLHeadingElement | null>; categories: string[]; selected: string[]; toggle: (category: string) => void; onOpenManagement: () => void }) {
+function PublicHeader({ heading, categories, selected, toggle, onGoMain, onOpenManagement }: { heading: React.RefObject<HTMLHeadingElement | null>; categories: string[]; selected: string[]; toggle: (category: string) => void; onGoMain: () => void; onOpenManagement: () => void }) {
   return <header className="public-header">
     <div className="public-header-primary">
-      <a className="public-header-brand" href={import.meta.env.BASE_URL} aria-label="Main Page"><img className="public-header-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" /><h1 ref={heading} tabIndex={-1}>The ChoiceMaker Korea Selection for 2026 Frankfurt Book Fair</h1></a>
+      <a className="public-header-brand" href="#main" aria-label="Main Page" onClick={onGoMain}><img className="public-header-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" /><h1 ref={heading} tabIndex={-1}>The ChoiceMaker Korea Selection for 2026 Frankfurt Book Fair</h1></a>
       <div className="public-header-actions">{adminDemoEnabled && <button className="admin-entry" onClick={onOpenManagement}><svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="8" r="3" /><path d="M5.5 19c.8-3.2 3-4.8 6.5-4.8s5.7 1.6 6.5 4.8" /></svg>관리자 데모</button>}</div>
     </div>
     <nav className="public-category-navigation" aria-label="도서 카테고리"><ShelfControls categories={categories} selected={selected} toggle={toggle} /></nav>

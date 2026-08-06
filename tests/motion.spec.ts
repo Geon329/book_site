@@ -32,18 +32,38 @@ async function openManagement(page: import('@playwright/test').Page) {
 }
 
 test.describe('book shelf motion', () => {
+  test('shows the splash page on root visits and enters the main page immediately', async ({ page }) => {
+    await page.setViewportSize({ width: 1672, height: 941 });
+    await page.goto('/');
+
+    await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', exact: true })).toBeVisible();
+    await expect(page.getByText('FRANKFURT BOOK FAIR 2026')).toBeVisible();
+    const enter = page.getByRole('link', { name: /Explore Our 2026 Frankfurt Book Fair Exhibit Titles/ });
+    await expect(enter).toHaveAttribute('href', '#main');
+    await expect(page.locator('.public-shelf')).toHaveCount(0);
+    await enter.click();
+
+    await expect(page).toHaveURL(/#main$/);
+    await expect(page.locator('.public-shelf')).toBeVisible();
+
+    await page.goto('/');
+    await expect(page.locator('.splash-page')).toBeVisible();
+  });
   test('links the full fair title back to the main page', async ({ page }) => {
-    await page.goto('/#featured-titles');
+    await page.goto('/#main');
 
     const mainPageLink = page.getByRole('link', { name: 'Main Page' });
-    await expect(mainPageLink).toHaveAttribute('href', '/');
+    await expect(mainPageLink).toHaveAttribute('href', '#main');
     await expect(mainPageLink.getByRole('heading', { name: 'The ChoiceMaker Korea Selection for 2026 Frankfurt Book Fair' })).toBeVisible();
+    await page.getByRole('button', { name: /Explore Our Portfolio/ }).click();
+    await expect(page.locator('.company-portfolio')).toBeVisible();
     await mainPageLink.click();
 
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/#main$/);
+    await expect(page.locator('#featured-titles')).toBeVisible();
   });
   test('omits the partner marquee from the portfolio page', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     await page.getByRole('button', { name: /Explore Our Portfolio/ }).click();
 
     await expect(page.locator('.company-portfolio')).toBeVisible();
@@ -51,7 +71,7 @@ test.describe('book shelf motion', () => {
     await expect(page.getByRole('heading', { name: 'Where We Meet, Connect, and Grow.' })).toBeVisible();
   });
   test('merges educational comics and graphic novels into one category', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
 
     const categories = page.locator('.public-category-navigation .filters button');
     await expect(categories).toHaveText(['Picture Books', 'Fictions', 'Comics & Graphic Novels', 'Language Learning']);
@@ -62,7 +82,7 @@ test.describe('book shelf motion', () => {
   });
   test('renders the desktop shelf at an 80 percent page scale', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto('/');
+    await page.goto('/#main');
 
     const desktopScale = await page.locator('.public-shelf').evaluate((shelf) => ({
       zoom: getComputedStyle(shelf).zoom,
@@ -87,7 +107,7 @@ test.describe('book shelf motion', () => {
   });
   test('renders the public editorial shelf with its two-band header and English category filtering', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto('/');
+    await page.goto('/#main');
 
     await expect(page).toHaveTitle('도서전 소개');
     await expect(page.locator('.public-header-primary')).toBeVisible();
@@ -163,7 +183,7 @@ test.describe('book shelf motion', () => {
 
   test('shows the reusable audience filter for Fiction at every viewport', async ({ page }) => {
     await page.setViewportSize({ width: 1672, height: 900 });
-    await page.goto('/');
+    await page.goto('/#main');
     await expect(page.locator('.audience-filter')).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Fictions', exact: true }).click();
@@ -216,7 +236,7 @@ test.describe('book shelf motion', () => {
     await expect(page.locator('.audience-filter')).toHaveCount(0);
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
+    await page.goto('/#main');
     await page.getByRole('button', { name: 'Fictions', exact: true }).click();
     const mobileFilter = page.getByRole('group', { name: 'Fiction 독자 연령 필터' });
     await expect(mobileFilter).toBeVisible();
@@ -226,7 +246,7 @@ test.describe('book shelf motion', () => {
   });
 
   test('switches the shelf instantly when crossing the Fiction filter boundary', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
 
     await page.getByRole('button', { name: 'Fictions', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Fictions', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -249,7 +269,7 @@ test.describe('book shelf motion', () => {
   });
 
   test('uses public English category labels in management', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     await openManagement(page);
 
     const categoryManagement = page.locator('.management-section').filter({ has: page.getByRole('heading', { name: '카테고리 관리' }) });
@@ -301,7 +321,7 @@ test.describe('book shelf motion', () => {
       confidence: 'high',
     });
 
-    await page.goto('/');
+    await page.goto('/#main');
     await page.locator('.book-card[data-book-id="huntergirl-1"]').click();
     const audienceFact = page.getByRole('dialog').locator('.detail-publication div').filter({ hasText: '추천 독자' });
     await expect(audienceFact).toContainText('Middle Grade · 초등 3~6학년 (만 9~12세)');
@@ -316,7 +336,7 @@ test.describe('book shelf motion', () => {
     expect(catalog.books.filter((book) => book.id.startsWith('language-learning-swipe-test')).every((book) => (book.awards as unknown[]).length > 0 && (book.rightsSold as unknown[]).length > 0)).toBe(true);
 
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto('/');
+    await page.goto('/#main');
 
     const emptyCard = page.locator('.book-card[data-book-id="sticker"]');
     const emptyOverlay = emptyCard.locator('.book-card-overlay');
@@ -391,7 +411,7 @@ test.describe('book shelf motion', () => {
     await expect(metadataOverlay).toHaveCSS('visibility', 'hidden');
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
+    await page.goto('/#main');
     await page.getByRole('button', { name: 'Language Learning', exact: true }).click();
     await expect(page.locator('.book-card-overlay').first()).toHaveCSS('display', 'none');
   });
@@ -400,7 +420,7 @@ test.describe('book shelf motion', () => {
     const requests: string[] = [];
     page.on('request', (request) => requests.push(request.url()));
     await page.setViewportSize({ width: 1672, height: 941 });
-    await page.goto('/');
+    await page.goto('/#main');
 
     const hero = page.locator('.public-hero');
     const heroImage = hero.locator('.public-hero-image');
@@ -502,7 +522,7 @@ test.describe('book shelf motion', () => {
   });
 
   test('serves the immutable PNG hero byte-for-byte from the app', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     const heroUrl = await page.locator('.public-hero-image').getAttribute('src');
     expect(heroUrl).toMatch(/\.png(?:$|\?)/);
 
@@ -521,7 +541,7 @@ test.describe('book shelf motion', () => {
   });
 
   test('pins every local WOFF2 font to its declared release and bytes', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     await expect(page.locator('link[rel="preload"][as="font"]')).toHaveAttribute('href', '/fonts/cormorant-garamond-600.woff2');
     await expect(page.locator('link[rel="preload"][as="font"]')).toHaveAttribute('type', 'font/woff2');
     const expectedFonts = [
@@ -561,7 +581,7 @@ test.describe('book shelf motion', () => {
 
   test('fills public book cover frames by default on the desktop shelf', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto('/');
+    await page.goto('/#main');
     const layout = await page.locator('.book-card').evaluateAll((cards) => cards.slice(0, 4).map((card) => {
       const cardRect = card.getBoundingClientRect();
       const coverRect = card.querySelector<HTMLElement>('.cover-frame')!.getBoundingClientRect();
@@ -642,7 +662,7 @@ test.describe('book shelf motion', () => {
     expect(position1.gapToNextCard).toBeGreaterThanOrEqual(8);
   });
   test('preloads sticky note artwork before fast category navigation', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
 
     const preloadFiles = await page.locator('link[rel="preload"][as="image"]').evaluateAll((links) => links.map((link) => new URL((link as HTMLLinkElement).href).pathname));
     expect(preloadFiles).toHaveLength(3);
@@ -664,7 +684,7 @@ test.describe('book shelf motion', () => {
     });
   });
   test('derives sticky note artwork from awards and rights metadata', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     const publicCard = page.locator('.book-card[data-book-id="star-cat-village-4"]');
     await expect(publicCard.locator('.book-sticky-note')).toHaveCount(0);
     await openManagement(page);
@@ -712,7 +732,7 @@ test.describe('book shelf motion', () => {
     await expect(publicCard.locator('.book-sticky-note')).toHaveCount(0);
   });
   test('filters cover risks and persists a manual public presentation override', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     const publicIds = await page.locator('.book-card').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-book-id')));
     await openManagement(page);
 
@@ -747,7 +767,7 @@ test.describe('book shelf motion', () => {
 
   test('keeps the public editorial shelf within the narrow viewport', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
+    await page.goto('/#main');
     const dimensions = await page.evaluate(() => ({
       clientWidth: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
@@ -756,7 +776,7 @@ test.describe('book shelf motion', () => {
   });
   test('flows card titles naturally without disturbing grid rows', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto('/');
+    await page.goto('/#main');
     await page.waitForTimeout(300);
     const layout = await page.locator('.book-card').evaluateAll((cards) => cards.slice(0, 8).map((card) => {
       const cover = card.querySelector<HTMLElement>('.cover-frame')!;
@@ -788,7 +808,7 @@ test.describe('book shelf motion', () => {
     for (const gap of bottomGaps) expect(gap).toBeGreaterThanOrEqual(12);
   });
   test('shows covers without a separate image animation or geometry change', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     const cover = page.locator('.book-cover').first();
     await expect(cover).toBeVisible();
     await expect(cover).toHaveCSS('opacity', '1');
@@ -798,14 +818,14 @@ test.describe('book shelf motion', () => {
     expect(box?.height).toBeGreaterThan(0);
   });
   test('keeps editorial covers free of the superseded sheen treatment', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     const coverFrame = page.locator('.book-card').first().locator('.cover-frame');
     await expect(coverFrame).toBeVisible();
     expect(await coverFrame.evaluate((element) => getComputedStyle(element, '::after').content)).toBe('none');
   });
 
   test('transitions to the empty state when a new category has no books', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     await page.getByRole('button', { name: '관리자 데모' }).click();
     await page.getByLabel('새 카테고리').fill('빈 Motion');
     await page.getByRole('button', { name: '추가', exact: true }).click();
@@ -818,7 +838,7 @@ test.describe('book shelf motion', () => {
   });
   test('keeps the editorial detail layout compact on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
+    await page.goto('/#main');
     await page.locator('.book-card').first().click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
@@ -863,7 +883,7 @@ test.describe('book shelf motion', () => {
   });
   test('keeps the cover prominent and centered through tablet widths', async ({ page }) => {
     await page.setViewportSize({ width: 481, height: 844 });
-    await page.goto('/');
+    await page.goto('/#main');
     await page.locator('.book-card').first().click();
     const cover = page.locator('.detail-cover');
     await expect(cover).toBeVisible();
@@ -884,7 +904,7 @@ test.describe('book shelf motion', () => {
   });
   test('keeps a long detail title visible across responsive widths', async ({ page }) => {
     await page.setViewportSize({ width: 800, height: 844 });
-    await page.goto('/');
+    await page.goto('/#main');
     await page.locator('.book-card').first().click();
     const title = page.locator('.detail-title');
     await expect(title).toBeVisible();
@@ -900,7 +920,7 @@ test.describe('book shelf motion', () => {
   test('keeps motion off when reduced motion is requested', async ({ browser }) => {
     const context = await browser.newContext({ reducedMotion: 'reduce' });
     const page = await context.newPage();
-    await page.goto('/');
+    await page.goto('/#main');
     const heroHeading = page.locator('#public-hero-heading');
     await expect(heroHeading).toHaveCSS('opacity', '1');
     expect(await heroHeading.evaluate((element) => element.getAnimations().length)).toBe(0);
@@ -916,7 +936,7 @@ test.describe('book shelf motion', () => {
   });
 
   test('preserves detail dialog focus behavior', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     const opener = page.locator('.book-card').first();
     await opener.click();
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -928,7 +948,7 @@ test.describe('book shelf motion', () => {
   });
   test('groups shelf series and isolates volume slider gestures from popup navigation', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
+    await page.goto('/#main');
     await page.getByRole('button', { name: 'Language Learning', exact: true }).click();
     const seriesCard = page.locator('.book-card').filter({ has: page.locator('strong', { hasText: 'Language Learning Swipe Test Series' }) });
     await expect(seriesCard).toHaveCount(1);
@@ -1044,7 +1064,7 @@ test.describe('book shelf motion', () => {
     await expect(dialog.locator('.series-navigation')).toHaveText('Language Learning Swipe Test Series · 2 / 3');
   });
   test('adds new JSON catalog books and persists them locally', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     await page.evaluate(() => localStorage.clear());
     await page.reload();
     const initialBookCount = await page.getByRole('region', { name: '책 목록' }).getByRole('button').count();
@@ -1092,7 +1112,7 @@ test.describe('book shelf motion', () => {
   });
 
   test('keeps the existing catalog when JSON imports are invalid', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     await page.evaluate(() => localStorage.clear());
     await page.reload();
 
@@ -1118,7 +1138,7 @@ test.describe('book shelf motion', () => {
     await expect(publicCatalog.getByRole('button').first()).toHaveText(previousTitle ?? '');
   });
   test('restores the bundled JSON catalog when a stored draft has a stale source fingerprint', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#main');
     await page.evaluate((catalog) => {
       localStorage.setItem('book-margin-demo-v2', JSON.stringify({
         catalogVersion: 4,
