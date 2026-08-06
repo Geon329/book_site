@@ -479,6 +479,8 @@ test.describe('book shelf motion', () => {
 
   test('pins every local WOFF2 font to its declared release and bytes', async ({ page }) => {
     await page.goto('/');
+    await expect(page.locator('link[rel="preload"][as="font"]')).toHaveAttribute('href', '/fonts/cormorant-garamond-600.woff2');
+    await expect(page.locator('link[rel="preload"][as="font"]')).toHaveAttribute('type', 'font/woff2');
     const expectedFonts = [
       { family: 'Cormorant Garamond', weight: 600, emittedLocalUrl: '/fonts/cormorant-garamond-600.woff2', pinnedReleaseVersion: 'v4.002', licenseIdentifier: 'SIL-OFL-1.1', format: 'woff2', rawByteSize: 204052, sha256: 'af765967938cc1bd47f6de51c0b7992f22ebbd4b58f1fd8c1f37a3dbb80b26c3' },
       { family: 'Pretendard', weight: 400, emittedLocalUrl: '/fonts/pretendard-400.woff2', pinnedReleaseVersion: 'v1.3.9', licenseIdentifier: 'SIL-OFL-1.1', format: 'woff2', rawByteSize: 765892, sha256: 'fad853f7f47c6c8b103171e7193fa095708cdcd70850a71d93aa5379e8a61d63' },
