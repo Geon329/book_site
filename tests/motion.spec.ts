@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
-import { SPLASH_LINE_ITEMS, SPLASH_MOTION, canCompleteSplashEntrance, commitSplashEntry, splashMotionTransition } from '../src/motion';
+import { SPLASH_EXIT_MOTION, SPLASH_LINE_ITEMS, SPLASH_MOTION, canCompleteSplashEntrance, commitSplashEntry, splashExitTransition, splashMotionTransition } from '../src/motion';
 
 const importedCatalog = {
   schemaVersion: 1,
@@ -62,6 +62,8 @@ test.describe('book shelf motion', () => {
       },
     });
     expect('exitDurationMs' in SPLASH_MOTION).toBe(false);
+    expect(SPLASH_EXIT_MOTION).toEqual({ durationMs: 160, easing: [0, 0, 0.58, 1] });
+    expect(splashExitTransition()).toEqual({ duration: .16, ease: [0, 0, 0.58, 1] });
     for (const [key, item] of Object.entries(SPLASH_MOTION.items)) {
       expect(item.delayMs).toBeGreaterThanOrEqual(0);
       expect(item.durationMs).toBeGreaterThan(0);
@@ -191,7 +193,7 @@ test.describe('book shelf motion', () => {
       await page.close();
     }
   });
-  test('matches the editorial split layout on the splash page and enters main immediately', async ({ page }) => {
+  test('matches the editorial split layout on the splash page and enters Main through the page transition', async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto('/');
 
@@ -233,7 +235,7 @@ test.describe('book shelf motion', () => {
         overflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         layoutWidth: Math.round(splashLayout.width),
         layoutLeft: Math.round(splashLayout.left),
-        centered: Math.abs(splashLayout.left - (window.innerWidth - splashLayout.width) / 2) <= 1,
+        centered: Math.abs(splashLayout.left - (document.documentElement.getBoundingClientRect().width - splashLayout.width) / 2) <= 1,
         displayFont: getComputedStyle(title).fontFamily,
         descriptionFont: getComputedStyle(document.querySelector('.splash-description')!).fontFamily,
         eventAlignItems: eventStyle.alignItems,
@@ -253,7 +255,7 @@ test.describe('book shelf motion', () => {
       descriptionRule: '1px',
       animations: 0,
       overflowX: false,
-      layoutWidth: 1720,
+      layoutWidth: 1705,
       layoutLeft: 100,
       centered: true,
       displayFont: '"Bodoni Moda", serif',
@@ -355,21 +357,101 @@ test.describe('book shelf motion', () => {
       .flatMap(({ properties }) => properties));
     expect(slashProperties).toEqual(new Set(['opacity', 'clipPath']));
   });
-  test('navigates immediately during entrance and transfers keyboard focus', async ({ page }) => {
+  test('starts Main entry during splash entrance and transfers keyboard focus', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entering');
 
     const enter = page.getByRole('link', { name: 'Go Main' });
     await enter.focus();
-    await page.evaluate(() => {
-      const timing = window as typeof window & { __splashHashDuringActivation?: string };
-      document.addEventListener('click', () => { timing.__splashHashDuringActivation = window.location.hash; }, { once: true });
-    });
     await page.keyboard.press('Enter');
     await page.waitForURL(/#main$/);
 
-    expect(await page.evaluate(() => (window as typeof window & { __splashHashDuringActivation?: string }).__splashHashDuringActivation)).toBe('#main');
     await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea Selection for 2026 Frankfurt Book Fair' })).toBeFocused();
+  });
+  test('uses the native same-document crossfade when the browser supports it', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+
+    const wrapped = await page.evaluate(() => {
+      type ViewTransitionDocument = Document & { startViewTransition?: (update: () => void) => unknown };
+      const viewTransitionDocument = document as ViewTransitionDocument;
+      const native = viewTransitionDocument.startViewTransition;
+      if (typeof native !== 'function') return false;
+      const runtime = window as typeof window & { __splashNativeViewTransitionCalls?: number };
+      runtime.__splashNativeViewTransitionCalls = 0;
+      Object.defineProperty(document, 'startViewTransition', {
+        configurable: true,
+        value: (update: () => void) => {
+          runtime.__splashNativeViewTransitionCalls! += 1;
+          return native.call(document, update);
+        },
+      });
+      return true;
+    });
+    test.skip(!wrapped, 'Same-document View Transition is unavailable in this browser.');
+
+    await page.getByRole('link', { name: 'Go Main' }).click();
+    await expect(page.locator('.public-shelf')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => (window as typeof window & { __splashNativeViewTransitionCalls?: number }).__splashNativeViewTransitionCalls)).toBe(1);
+  });
+  test('warms Main assets before the crossfade and prioritizes its first visible cards', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+
+    await expect.poll(() => page.evaluate(() => ({
+      cormorantLoaded: document.fonts.check('600 16px "Cormorant Garamond"'),
+      pretendard500Loaded: document.fonts.check('500 16px Pretendard'),
+      heroRequested: performance.getEntriesByType('resource').some((entry) => entry.initiatorType === 'img' && entry.name.includes('item_01')),
+      scrollbarGutter: getComputedStyle(document.documentElement).scrollbarGutter,
+    }))).toEqual({
+      cormorantLoaded: true,
+      pretendard500Loaded: true,
+      heroRequested: true,
+      scrollbarGutter: 'stable',
+    });
+
+    await page.getByRole('link', { name: 'Go Main' }).click();
+    await expect(page.locator('.public-shelf')).toBeVisible();
+    const mainEntry = await page.evaluate(() => {
+      const heading = document.querySelector<HTMLElement>('#public-hero-heading')!;
+      const covers = Array.from(document.querySelectorAll<HTMLImageElement>('.book-cover'));
+      return {
+        headingOpacity: getComputedStyle(heading).opacity,
+        headingAnimations: heading.getAnimations().length,
+        scrollbarGutter: getComputedStyle(document.documentElement).scrollbarGutter,
+        priorityCovers: covers.slice(0, 5).map((cover) => ({ loading: cover.loading, fetchPriority: cover.fetchPriority })),
+        deferredCovers: covers.slice(5).map((cover) => cover.loading),
+      };
+    });
+    expect(mainEntry.headingOpacity).toBe('1');
+    expect(mainEntry.headingAnimations).toBe(0);
+    expect(mainEntry.scrollbarGutter).toBe('stable');
+    expect(mainEntry.priorityCovers).toHaveLength(5);
+    expect(mainEntry.priorityCovers.every((cover) => cover.loading === 'eager' && cover.fetchPriority === 'high')).toBe(true);
+    expect(mainEntry.deferredCovers.length).toBeGreaterThan(0);
+    expect(mainEntry.deferredCovers.every((loading) => loading === 'lazy')).toBe(true);
+  });
+  test('fades the splash before entry when same-document View Transition is unavailable', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(document, 'startViewTransition', { configurable: true, value: undefined });
+    });
+    await page.goto('/');
+    const splash = page.locator('.splash-page');
+    await expect(splash).toHaveAttribute('data-motion-phase', 'entered');
+
+    await page.getByRole('link', { name: 'Go Main' }).click();
+    const fading = await page.evaluate(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      const splashPage = document.querySelector<HTMLElement>('.splash-page');
+      return {
+        exiting: splashPage?.dataset.splashExiting,
+        opacity: splashPage ? Number.parseFloat(getComputedStyle(splashPage).opacity) : 0,
+      };
+    });
+    expect(fading.exiting).toBe('true');
+    expect(fading.opacity).toBeLessThan(1);
+    await expect(page).toHaveURL(/#main$/);
+    await expect(page.locator('.public-shelf')).toBeVisible();
   });
   test('supports pointer activation during entrance and keyboard activation after settlement', async ({ browser }) => {
     const pointerPage = await browser.newPage();
@@ -552,8 +634,8 @@ test.describe('book shelf motion', () => {
         const event = document.querySelector<HTMLElement>('.splash-event-details')!;
         const eventRightEdges = Array.from(event.querySelectorAll('p'), (line) => line.getBoundingClientRect().right);
         return {
-          widthRatio: layout.width / window.innerWidth,
-          centered: Math.abs(layout.left - (window.innerWidth - layout.width) / 2) <= 1,
+          widthRatio: layout.width / document.documentElement.getBoundingClientRect().width,
+          centered: Math.abs(layout.left - (document.documentElement.getBoundingClientRect().width - layout.width) / 2) <= 1,
           pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
           eventOverflow: event.scrollWidth > event.clientWidth + 1,
           eventAnchoredRight: Math.abs(Math.max(...eventRightEdges) - layout.right) <= 1,
@@ -570,28 +652,40 @@ test.describe('book shelf motion', () => {
     }
   });
   test('stacks the splash typography without horizontal overflow on mobile', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
-    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+    for (const width of [320, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto('/');
+      await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
 
-    const responsive = await page.evaluate(() => {
-      const brand = document.querySelector<HTMLElement>('.splash-brand-panel')!.getBoundingClientRect();
-      const event = document.querySelector<HTMLElement>('.splash-event-details')!.getBoundingClientRect();
-      const eventStyle = getComputedStyle(document.querySelector('.splash-event-details')!);
-      return {
-        direction: getComputedStyle(document.querySelector('.splash-layout')!).flexDirection,
-        eventBelowBrand: event.top >= brand.bottom,
-        overflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-        eventAlignItems: eventStyle.alignItems,
-        eventTextAlign: eventStyle.textAlign,
-        titleWithinViewport: Array.from(document.querySelectorAll<HTMLElement>('.splash-brand-panel h1 > *')).every((line) => {
-          const bounds = line.getBoundingClientRect();
-          return bounds.left >= 0 && bounds.right <= window.innerWidth;
-        }),
-      };
-    });
-    expect(responsive).toEqual({ direction: 'column', eventBelowBrand: true, overflowX: false, eventAlignItems: 'flex-start', eventTextAlign: 'left', titleWithinViewport: true });
-    await expect(page.getByRole('link', { name: 'Go Main' })).toBeVisible();
+      const responsive = await page.evaluate(() => {
+        const brand = document.querySelector<HTMLElement>('.splash-brand-panel')!.getBoundingClientRect();
+        const event = document.querySelector<HTMLElement>('.splash-event-details')!.getBoundingClientRect();
+        const eventStyle = getComputedStyle(document.querySelector('.splash-event-details')!);
+        const choiceMaker = document.querySelector<HTMLElement>('[data-splash-motion="title-choice-maker"]')!;
+        return {
+          direction: getComputedStyle(document.querySelector('.splash-layout')!).flexDirection,
+          eventBelowBrand: event.top >= brand.bottom,
+          overflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          eventAlignItems: eventStyle.alignItems,
+          eventTextAlign: eventStyle.textAlign,
+          titleWithinViewport: Array.from(document.querySelectorAll<HTMLElement>('.splash-brand-panel h1 > *')).every((line) => {
+            const bounds = line.getBoundingClientRect();
+            return bounds.left >= 0 && bounds.right <= window.innerWidth;
+          }),
+          choiceMakerFits: choiceMaker.scrollWidth <= choiceMaker.clientWidth + 1,
+        };
+      });
+      expect(responsive).toEqual({
+        direction: 'column',
+        eventBelowBrand: true,
+        overflowX: false,
+        eventAlignItems: 'flex-start',
+        eventTextAlign: 'left',
+        titleWithinViewport: true,
+        choiceMakerFits: true,
+      });
+      await expect(page.getByRole('link', { name: 'Go Main' })).toBeVisible();
+    }
   });
   test('serves and navigates the required production Pages base with bundled assets and fonts', async ({ page }) => {
     const pagesBaseUrl = process.env.PAGES_BASE_URL;
@@ -723,6 +817,13 @@ test.describe('book shelf motion', () => {
     expect(css).not.toMatch(/\bzoom\s*:/);
     expect(css).not.toContain('125vw');
     expect(app).toContain("top-layer-context-${topLayer?.kind === 'detail' ? topLayer.detail.audience : surface}");
+    expect(css).toContain('::view-transition-old(root)');
+    expect(css).toContain('::view-transition-new(root)');
+    expect(css).toContain('var(--shared-page-transition-duration)');
+    expect(app).toContain('startViewTransition');
+    expect(css).not.toContain('html:has(.splash-page)');
+    expect(app).toContain('document.fonts.load');
+    expect(app).toContain('hero.fetchPriority = \'high\'');
     expect(css).not.toMatch(/\.dialog\s*\{[^}]*var\(--foundation-/);
     expect(css).not.toMatch(/\.fair-image-placeholder\s*\{[^}]*var\(--foundation-/);
     expect(css).toMatch(/\.dialog\s*\{[^}]*font-family:\s*var\(--dialog-font\)/);
@@ -760,6 +861,9 @@ test.describe('book shelf motion', () => {
       await page.goto('/#main');
       const metrics = await page.evaluate(() => {
         const navigation = document.querySelector<HTMLElement>('.public-category-navigation')!.getBoundingClientRect();
+        const hero = document.querySelector<HTMLElement>('.public-hero')!;
+        const heroHeading = hero.querySelector<HTMLElement>('h2')!.getBoundingClientRect();
+        const heroStyle = getComputedStyle(hero);
         const controls = Array.from(document.querySelectorAll<HTMLElement>('.public-category-navigation button'));
         const firstCard = document.querySelector<HTMLElement>('.book-card')!;
         return {
@@ -768,6 +872,8 @@ test.describe('book shelf motion', () => {
           navigationWidth: navigation.width,
           viewportWidth: window.innerWidth,
           cardWidth: Math.round(firstCard.getBoundingClientRect().width),
+          heroHeadingInset: Math.round(heroHeading.left - hero.getBoundingClientRect().left),
+          heroPaddingLeft: Math.round(Number.parseFloat(heroStyle.paddingLeft)),
           controlSizes: controls.map((control) => {
             const rect = control.getBoundingClientRect();
             return { width: rect.width, height: rect.height };
@@ -778,6 +884,10 @@ test.describe('book shelf motion', () => {
       expect(Math.abs(metrics.navigationLeft)).toBeLessThanOrEqual(8);
       expect(Math.round(metrics.navigationWidth)).toBe(metrics.viewportWidth);
       expect(metrics.cardWidth).toBe(boundary.cardWidth);
+      if (boundary.width >= 900) {
+        expect(metrics.heroPaddingLeft).toBeGreaterThan(0);
+        expect(metrics.heroHeadingInset).toBe(metrics.heroPaddingLeft);
+      }
       expect(metrics.controlSizes).toHaveLength(4);
       expect(metrics.controlSizes.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
     }

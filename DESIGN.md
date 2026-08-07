@@ -91,7 +91,7 @@ Main의 1024px 이상 Native 값은 Hero 44~46.4px, Section Heading 28px, Card T
 | Catalogue gap | `25px` | `20px` |
 | Wide gutter | `clamp(48px, 4vw, 72px)` | `clamp(38.4px, 3.2vw, 57.6px)` |
 
-CSS `zoom`과 `125vw` 보정은 사용하지 않는다. 900px부터 Navigation은 정확히 Viewport 폭을 사용하고 Filter/Hero/Grid는 Container와 Gutter 안에서 정렬한다. 900~1023px는 과거 Overflow 결함을 교정한 구간이며, 1024px부터는 과거 `.8` post-zoom의 렌더링 Geometry를 Native CSS px 값으로 재현한다. Browser 확대/축소는 실제 Responsive Reflow로 처리한다.
+CSS `zoom`과 `125vw` 보정은 사용하지 않는다. 900px부터 Navigation은 정확히 Viewport 폭을 사용하고 Filter/Hero/Grid는 Container와 Gutter 안에서 정렬한다. 900~1023px는 과거 Overflow 결함을 교정한 구간이며, 1024px부터는 과거 `.8` post-zoom의 렌더링 Geometry를 Native CSS px 값으로 재현한다. Browser 확대/축소는 실제 Responsive Reflow로 처리한다. Splash와 Main 사이의 전환에서는 두 화면 모두 stable scrollbar gutter를 유지한다.
 
 ### 4.6 Canonical condition registry
 
@@ -112,7 +112,7 @@ Media 조건은 CSS 변수로 추상화하지 않고 아래 Literal, 방향, 포
 
 Foundation은 `160ms`, `220ms`, `cubic-bezier(0, 0, .58, 1)`을 제공하고 각 Context가 의미 Alias를 만든다. Hover 이동은 3px, 이미지 확대는 1.02, 화살표 이동은 4px을 상한으로 삼는다. `prefers-reduced-motion`에서는 비필수 이동을 제거한다.
 
-Splash Page는 마운트마다 한 번, 최대 2300ms 안에서 절제된 편집형 순서로 등장한다. 첫 0~1180ms에는 가로선·세로선을 서로 다른 시작점과 길이로 그린다. 행사 부스 표기의 `/`는 글리프를 변형하지 않고 위에서 아래로 마스킹해 본래 사선 형태를 유지한 채 드러낸다. 선 전용 easing으로 시작과 끝에 충분한 장력을 두고, 1220ms부터 행사명 → 로고 → 브랜드 제목과 우측 행사 정보 → 설명 → CTA → 푸터 텍스트를 opacity와 최대 10px의 Y 이동으로 하나씩 드러낸다. CTA는 어느 단계에서든 즉시 Main Page로 이동하고 별도 퇴장 애니메이션을 두지 않는다. 텍스트에는 Scale·Blur·Spring·레이아웃 이동이나 상시 `will-change`를 사용하지 않는다. Reduced Motion에서는 즉시 완성 상태로 정착하고 같은 마운트에서 다시 재생하지 않는다.
+Splash Page는 마운트마다 한 번, 최대 2300ms 안에서 절제된 편집형 순서로 등장한다. 첫 0~1180ms에는 가로선·세로선을 서로 다른 시작점과 길이로 그린다. 행사 부스 표기의 `/`는 글리프를 변형하지 않고 위에서 아래로 마스킹해 본래 사선 형태를 유지한 채 드러낸다. 선 전용 easing으로 시작과 끝에 충분한 장력을 두고, 1220ms부터 행사명 → 로고 → 브랜드 제목과 우측 행사 정보 → 설명 → CTA → 푸터 텍스트를 opacity와 최대 10px의 Y 이동으로 하나씩 드러낸다. Splash 마운트 중에는 Main의 Cormorant 600, Pretendard 500과 Hero 이미지를 백그라운드로 준비한다. CTA는 어느 단계에서든 즉시 Main Page 전환을 시작한다. Reduced Motion이 아니고 Same-Document View Transition을 지원하는 브라우저에서는 160ms opacity crossfade로 Splash와 Main을 연결하며, 이 경로에서는 Main Hero 제목의 별도 entrance를 실행하지 않는다. 지원하지 않는 브라우저에서는 Splash를 같은 종이색 배경으로 160ms opacity fade한 뒤 Main을 연다. 두 전환 모두 transform·scale·blur·spring·레이아웃 이동을 사용하지 않는다. Reduced Motion에서는 즉시 Main으로 이동하고 같은 마운트에서 Splash entrance를 다시 재생하지 않는다.
 
 ## 5. Components
 

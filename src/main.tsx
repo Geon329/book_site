@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom';
 import { FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent, useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { createRoot } from 'react-dom/client';
@@ -11,7 +12,7 @@ import stickyNoteAwards from './assets/sticky-label-award.svg?no-inline';
 import stickyNoteSold from './assets/sticky-label-sold.svg?no-inline';
 import stickyNoteSoldAwards from './assets/sticky-label-sold-award.svg?no-inline';
 import awardIcon from '../award-outline.png';
-import { SPLASH_MOTION, canCompleteSplashEntrance, commitSplashEntry, type SplashLineMotionItem, type SplashTextMotionItem, splashMotionTransition } from './motion';
+import { SPLASH_MOTION, canCompleteSplashEntrance, commitSplashEntry, type SplashLineMotionItem, type SplashTextMotionItem, splashExitTransition, splashMotionTransition } from './motion';
 import moonFogIcon from '../moon-fog-outline.png';
 
 type CoverFit = 'auto' | 'cover' | 'contain';
@@ -296,6 +297,11 @@ function useAnnouncer() {
     });
   }] as const;
 }
+type SplashEntryMode = 'native' | 'fallback' | 'instant';
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => unknown;
+};
+
 function App() {
   const [sitePage, setSitePage] = useState<'splash' | 'main'>(() => window.location.hash === '#main' ? 'main' : 'splash');
   const [catalog, setCatalog] = useState<CatalogState>(() => ({ store: loadStore(), selectedCategories: [] }));
@@ -310,10 +316,20 @@ function App() {
   const managementHeading = useRef<HTMLHeadingElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const priorSurface = useRef(surface);
+  const reducedMotion = useLiveReducedMotion();
+  const [mainEntryTransition, setMainEntryTransition] = useState(false);
+  const splashEntryRequest = useRef(false);
+  useMainEntryWarmup(sitePage === 'splash');
 
   useEffect(() => { localStorage.setItem(storageKey, JSON.stringify({ ...store, sourceFingerprint })); }, [store]);
   useEffect(() => {
-    const syncSitePage = () => setSitePage(window.location.hash === '#main' ? 'main' : 'splash');
+    const syncSitePage = () => {
+      const nextSitePage = window.location.hash === '#main' ? 'main' : 'splash';
+      const fromSplashEntry = splashEntryRequest.current;
+      splashEntryRequest.current = false;
+      setMainEntryTransition(nextSitePage === 'main' && fromSplashEntry);
+      setSitePage(nextSitePage);
+    };
     window.addEventListener('hashchange', syncSitePage);
     return () => window.removeEventListener('hashchange', syncSitePage);
   }, []);
@@ -416,12 +432,28 @@ function App() {
     </div>
     <BookGrid books={shelfBooks} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
   </section>;
-  const enterMain = (focusMainHeading: boolean) => {
+  const enterMain = (focusMainHeading: boolean, fromFallback = false): SplashEntryMode => {
     pendingMainFocus.current = focusMainHeading;
-    window.location.hash = 'main';
-    setSitePage('main');
+    const navigate = () => {
+      splashEntryRequest.current = true;
+      setMainEntryTransition(true);
+      window.location.hash = 'main';
+      setSitePage('main');
+    };
+    const viewTransitionDocument = document as ViewTransitionDocument;
+    if (!fromFallback && !reducedMotion && typeof viewTransitionDocument.startViewTransition === 'function') {
+      try {
+        viewTransitionDocument.startViewTransition(() => flushSync(navigate));
+        return 'native';
+      } catch {
+        return 'fallback';
+      }
+    }
+    if (!fromFallback && !reducedMotion) return 'fallback';
+    navigate();
+    return 'instant';
   };
-  if (sitePage === 'splash') return <SplashPage onEnter={enterMain} />;
+  if (sitePage === 'splash') return <SplashPage onEnter={enterMain} reducedMotion={reducedMotion} />;
   return <>
     <div id="app-shell">
       {surface === 'public' ? (
@@ -431,7 +463,7 @@ function App() {
             {publicPage === 'portfolio'
               ? <CompanyPortfolio />
               : <>
-                {!selectedCategory && <PublicHero onOpenPortfolio={() => setPublicPage('portfolio')} />}
+                {!selectedCategory && <PublicHero onOpenPortfolio={() => setPublicPage('portfolio')} animateHeading={!mainEntryTransition} />}
                 {featuredShelf}
               </>}
           </PageFrame>
@@ -472,6 +504,23 @@ function useLiveReducedMotion() {
   }, []);
   return reducedMotion;
 }
+function useMainEntryWarmup(active: boolean) {
+  const heroPreload = useRef<HTMLImageElement | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    void Promise.all([
+      document.fonts.load('600 1em "Cormorant Garamond"'),
+      document.fonts.load('500 1em Pretendard'),
+    ]).catch(() => undefined);
+    const hero = new Image();
+    hero.decoding = 'async';
+    hero.fetchPriority = 'high';
+    hero.src = editorialHero;
+    heroPreload.current = hero;
+    void hero.decode().catch(() => undefined);
+  }, [active]);
+}
+
 function splashEntrance(item: SplashTextMotionItem, reducedMotion: boolean) {
   const timing = SPLASH_MOTION.items[item];
   return {
@@ -498,12 +547,14 @@ function splashLineEntrance(item: SplashLineMotionItem, reducedMotion: boolean) 
     transition: reducedMotion ? { duration: 0 } : splashMotionTransition(item),
   };
 }
-function SplashPage({ onEnter }: { onEnter: (focusMainHeading: boolean) => void }) {
-  const reducedMotion = useLiveReducedMotion();
+function SplashPage({ onEnter, reducedMotion }: { onEnter: (focusMainHeading: boolean, fromFallback?: boolean) => SplashEntryMode; reducedMotion: boolean }) {
   const [phase, setPhase] = useState<'entering' | 'entered'>(() => reducedMotion ? 'entered' : 'entering');
   const phaseRef = useRef(phase);
   const reducedMotionRef = useRef(reducedMotion);
   const committed = useRef(false);
+  const [exiting, setExiting] = useState(false);
+  const fallbackFocus = useRef(false);
+  const fallbackCompleted = useRef(false);
   const keyboardActivation = useRef(false);
   const entranceGenerationRef = useRef(0);
   const entranceGeneration = entranceGenerationRef.current;
@@ -524,6 +575,14 @@ function SplashPage({ onEnter }: { onEnter: (focusMainHeading: boolean) => void 
       phase: phaseRef.current,
     })) setPhase('entered');
   };
+  const completeFallbackExit = () => {
+    if (!exiting || fallbackCompleted.current) return;
+    fallbackCompleted.current = true;
+    onEnter(fallbackFocus.current, true);
+  };
+  useEffect(() => {
+    if (reducedMotion && exiting) completeFallbackExit();
+  }, [exiting, reducedMotion]);
   const markKeyboardActivation = (event: ReactKeyboardEvent<HTMLAnchorElement>) => {
     keyboardActivation.current = event.key === 'Enter';
   };
@@ -541,9 +600,13 @@ function SplashPage({ onEnter }: { onEnter: (focusMainHeading: boolean) => void 
     if (!eligible) return;
     event.preventDefault();
     if (!commitSplashEntry(committed)) return;
-    onEnter(keyboardOrigin);
+    const entryMode = onEnter(keyboardOrigin);
+    if (entryMode === 'fallback') {
+      fallbackFocus.current = keyboardOrigin;
+      setExiting(true);
+    }
   };
-  return <main className="splash-page" data-motion-phase={phase}>
+  return <motion.main className="splash-page" data-motion-phase={phase} data-splash-exiting={exiting ? 'true' : undefined} initial={false} animate={{ opacity: exiting ? 0 : 1 }} transition={reducedMotion ? { duration: 0 } : splashExitTransition()} onAnimationComplete={completeFallbackExit}>
     <p className="splash-fair-label">
       <motion.span className="splash-fair-rule" data-splash-motion="line-fair" aria-hidden="true" {...splashLineEntrance('fairRule', reducedMotion)} />
       <motion.span className="splash-fair-label-text" data-splash-motion="fair-label" {...splashEntrance('fairLabel', reducedMotion)}>FRANKFURT BOOK FAIR 2026</motion.span>
@@ -580,7 +643,7 @@ function SplashPage({ onEnter }: { onEnter: (focusMainHeading: boolean) => void 
       </motion.span>
       <motion.span className="splash-footer-rule" data-splash-motion="line-footer" aria-hidden="true" {...splashLineEntrance('footerRule', reducedMotion)} />
     </footer>
-  </main>;
+  </motion.main>;
 }
 function ReiconCloseIcon() {
   // Reicon X icon, MIT: https://reicon.dev/illustration/x
@@ -596,12 +659,13 @@ function PublicHeader({ heading, categories, selected, toggle, onGoMain, onOpenM
     <nav className="public-category-navigation" aria-label="도서 카테고리"><ShelfControls categories={categories} selected={selected} toggle={toggle} /></nav>
   </header>;
 }
-function PublicHero({ onOpenPortfolio }: { onOpenPortfolio: () => void }) {
+function PublicHero({ onOpenPortfolio, animateHeading }: { onOpenPortfolio: () => void; animateHeading: boolean }) {
   const reduceMotion = useReducedMotion() ?? false;
+  const shouldAnimateHeading = animateHeading && !reduceMotion;
   const headingTransition = { duration: 0.36, ease: 'easeOut' as const };
   return <section className="public-hero" aria-labelledby="public-hero-heading">
     <div className="public-hero-copy">
-      <motion.h2 id="public-hero-heading" initial={reduceMotion ? false : { opacity: 0 }} animate={reduceMotion ? undefined : { opacity: 1 }} transition={reduceMotion ? undefined : headingTransition}>Curated Stories.<br />Worldwide Impact.</motion.h2>
+      <motion.h2 id="public-hero-heading" initial={shouldAnimateHeading ? { opacity: 0 } : false} animate={shouldAnimateHeading ? { opacity: 1 } : undefined} transition={shouldAnimateHeading ? headingTransition : undefined}>Curated Stories.<br />Worldwide Impact.</motion.h2>
       <p className="public-hero-subtitle">The ChoiceMaker Korea<br />2026 Frankfurt BookFair Exhibit Titles</p>
       <button className="public-hero-cta" type="button" onClick={onOpenPortfolio}>Explore Our Portfolio <span aria-hidden="true">→</span></button>
     </div>
@@ -659,7 +723,7 @@ function CompanyPortfolio() {
 function ShelfControls({ categories, selected, toggle }: { categories: string[]; selected: string[]; toggle: (category: string) => void }) { return <div className="filters" role="group" aria-label="카테고리 필터">{categories.filter((category) => category !== '보관').map((category) => { const active = selected.includes(category); return <button key={category} className={active ? 'active' : ''} aria-pressed={active} onClick={() => toggle(category)}>{publicCategoryLabel(category)}</button>; })}</div>; }
 function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; onOpen: (book: Book, event: React.MouseEvent<HTMLButtonElement>) => void; selected: boolean; hasActiveBooks: boolean }) {
   return books.length ? <section className="grid" aria-label="책 목록">
-      {books.map((book) => {
+      {books.map((book, index) => {
         const credits = [book.author, book.illustrator && book.illustrator !== '없음' ? book.illustrator : '', book.publisher].filter((value): value is string => typeof value === 'string' && value.trim() !== '');
         return <div key={book.id} className="book-card-shell">
           <button
@@ -667,7 +731,7 @@ function BookGrid({ books, onOpen, selected, hasActiveBooks }: { books: Book[]; 
             data-book-id={book.id}
             onClick={(event) => onOpen(book, event)}
           >
-            <BookCover book={book} />
+            <BookCover book={book} priority={index < 5} />
             <span className="book-card-copy">
               <span className="category">{book.categories.filter((item) => item !== '보관').map(publicCategoryLabel).join(' · ')}</span>
               <strong>{book.seriesId && Number.isFinite(book.seriesNumber) ? book.seriesTitle || book.english || book.title : book.english || book.title}</strong>
@@ -683,13 +747,13 @@ function BookStickyNote({ book, note }: { book: Book; note: StickyNote }) {
   const src = stickyNoteAssets[note.kind];
   return <img className={`book-sticky-note book-sticky-note-${note.position}`} data-sticky-note-kind={note.kind} data-sticky-note-position={note.position} src={src} alt={`${stickyNoteLabels[note.kind]}: ${book.english || book.title}`} decoding="sync" fetchPriority="high" />;
 }
-function BookCover({ book }: { book: Book }) {
+function BookCover({ book, priority }: { book: Book; priority: boolean }) {
   useCoverAnalysis(book.cover);
   const awards = book.awards ?? [];
   const rightsSold = book.rightsSold ?? [];
   const hasMetadata = awards.length > 0 || rightsSold.length > 0;
   return <span className="cover-frame">
-    <img className="book-cover" src={book.cover} alt="" loading="lazy" style={{ objectFit: resolvedCoverFit(book) }} />
+    <img className="book-cover" src={book.cover} alt="" loading={priority ? 'eager' : 'lazy'} fetchPriority={priority ? 'high' : 'auto'} style={{ objectFit: resolvedCoverFit(book) }} />
     <span className="book-card-overlay" aria-hidden="true">
       {!hasMetadata ? <img className="book-overlay-empty-icon" src={moonFogIcon} alt="" /> : <>
         {awards.length > 0 && <>

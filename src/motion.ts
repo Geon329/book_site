@@ -28,6 +28,11 @@ export const SPLASH_MOTION = {
     footer: { delayMs: 2000, durationMs: 300, initialYpx: 6 },
   },
 } as const;
+export const SPLASH_EXIT_MOTION = {
+  durationMs: 160,
+  easing: SPLASH_MOTION.easing,
+} as const;
+
 
 export const SPLASH_LINE_ITEMS = [
   'fairRule',
@@ -52,6 +57,13 @@ export function splashMotionTransition(item: SplashMotionItem) {
     ease: SPLASH_LINE_ITEMS.includes(item as SplashLineMotionItem)
       ? SPLASH_MOTION.lineEasing
       : SPLASH_MOTION.easing,
+  };
+}
+
+export function splashExitTransition() {
+  return {
+    duration: SPLASH_EXIT_MOTION.durationMs / 1_000,
+    ease: SPLASH_EXIT_MOTION.easing,
   };
 }
 export type SplashEntryCommit = { current: boolean };
