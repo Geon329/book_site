@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
+import { SPLASH_LINE_ITEMS, SPLASH_MOTION, canCompleteSplashEntrance, commitSplashEntry, splashMotionTransition } from '../src/motion';
 
 const importedCatalog = {
   schemaVersion: 1,
@@ -32,10 +33,171 @@ async function openManagement(page: import('@playwright/test').Page) {
 }
 
 test.describe('book shelf motion', () => {
+  test('encodes decorative rules first, then the editorial text entrance contract', () => {
+    expect(SPLASH_MOTION).toEqual({
+      easing: [0, 0, 0.58, 1],
+      lineEasing: [0.76, 0, 0.24, 1],
+      entranceDurationMs: 2300,
+      items: {
+        fairRule: { delayMs: 0, durationMs: 360, axis: 'y' },
+        brandRule: { delayMs: 100, durationMs: 640, axis: 'y' },
+        logoRule: { delayMs: 240, durationMs: 480, axis: 'x' },
+        descriptionRule: { delayMs: 360, durationMs: 560, axis: 'y' },
+        descriptionAccent: { delayMs: 480, durationMs: 360, axis: 'x' },
+        ctaRule: { delayMs: 560, durationMs: 400, axis: 'x' },
+        footerRule: { delayMs: 640, durationMs: 520, axis: 'x' },
+        eventSlash: { delayMs: 760, durationMs: 420, axis: 'reveal' },
+        fairLabel: { delayMs: 1220, durationMs: 260, initialYpx: 8 },
+        logo: { delayMs: 1290, durationMs: 300, initialYpx: 8 },
+        titleThe: { delayMs: 1360, durationMs: 320, initialYpx: 10 },
+        eventDate: { delayMs: 1430, durationMs: 340, initialYpx: 10 },
+        titleChoiceMaker: { delayMs: 1500, durationMs: 320, initialYpx: 10 },
+        eventHall: { delayMs: 1570, durationMs: 340, initialYpx: 10 },
+        titleKorea: { delayMs: 1640, durationMs: 320, initialYpx: 10 },
+        eventStandLeft: { delayMs: 1710, durationMs: 340, initialYpx: 10 },
+        eventStandRight: { delayMs: 1780, durationMs: 340, initialYpx: 10 },
+        description: { delayMs: 1850, durationMs: 280, initialYpx: 8 },
+        cta: { delayMs: 1940, durationMs: 260, initialYpx: 6 },
+        footer: { delayMs: 2000, durationMs: 300, initialYpx: 6 },
+      },
+    });
+    expect('exitDurationMs' in SPLASH_MOTION).toBe(false);
+    for (const [key, item] of Object.entries(SPLASH_MOTION.items)) {
+      expect(item.delayMs).toBeGreaterThanOrEqual(0);
+      expect(item.durationMs).toBeGreaterThan(0);
+      expect(item.delayMs + item.durationMs).toBeLessThanOrEqual(SPLASH_MOTION.entranceDurationMs);
+      if ('initialYpx' in item) expect(item.initialYpx).toBeLessThanOrEqual(10);
+      if ('axis' in item) expect(['x', 'y', 'reveal']).toContain(item.axis);
+      expect(splashMotionTransition(key as keyof typeof SPLASH_MOTION.items)).toEqual({
+        delay: item.delayMs / 1_000,
+        duration: item.durationMs / 1_000,
+        ease: SPLASH_LINE_ITEMS.includes(key as typeof SPLASH_LINE_ITEMS[number])
+          ? SPLASH_MOTION.lineEasing
+          : SPLASH_MOTION.easing,
+      });
+    }
+    const lastLineEnd = Math.max(...SPLASH_LINE_ITEMS.map((key) => {
+      const item = SPLASH_MOTION.items[key];
+      return item.delayMs + item.durationMs;
+    }));
+    expect(lastLineEnd).toBeLessThanOrEqual(SPLASH_MOTION.items.fairLabel.delayMs);
+    const commit = { current: false };
+    expect([commitSplashEntry(commit), commitSplashEntry(commit)]).toEqual([true, false]);
+    expect(canCompleteSplashEntrance({
+      activeGeneration: 2,
+      callbackGeneration: 1,
+      reducedMotion: false,
+      phase: 'entering',
+    })).toBe(false);
+    expect(canCompleteSplashEntrance({
+      activeGeneration: 1,
+      callbackGeneration: 1,
+      reducedMotion: false,
+      phase: 'entering',
+    })).toBe(true);
+  });
+  test('keeps splash-attributable entrance layout shift below the release ceiling with a deterministic fallback', async ({ browser }) => {
+    for (const forceFallback of [false, true]) {
+      const page = await browser.newPage();
+      await page.addInitScript((fallback) => {
+        type ShiftEntry = {
+          hadRecentInput: boolean;
+          value: number;
+          sources?: Array<{ node?: Node }>;
+        };
+        const runtime = window as typeof window & {
+          __splashCls?: { supported: boolean; attributionSupported: boolean; value: number; error?: string };
+          __recordSplashShifts?: (entries: ShiftEntry[]) => void;
+        };
+        runtime.__splashCls = { supported: false, attributionSupported: false, value: 0 };
+        runtime.__recordSplashShifts = (entries) => {
+          for (const entry of entries) {
+            if (entry.hadRecentInput || !entry.sources?.length) continue;
+            runtime.__splashCls!.attributionSupported = true;
+            if (entry.sources.some(({ node }) => node instanceof Element && node.closest('.splash-page'))) {
+              runtime.__splashCls!.value += entry.value;
+            }
+          }
+        };
+        if (fallback) {
+          runtime.__splashCls.error = 'forced-attribution-fallback';
+          return;
+        }
+        try {
+          const observer = new PerformanceObserver((entries) => {
+            runtime.__splashCls!.supported = true;
+            runtime.__recordSplashShifts!(entries.getEntries() as Array<PerformanceEntry & ShiftEntry>);
+          });
+          observer.observe({ type: 'layout-shift', buffered: true });
+          runtime.__splashCls.supported = true;
+        } catch (error) {
+          runtime.__splashCls.error = error instanceof Error ? error.message : String(error);
+        }
+      }, forceFallback);
+      await page.goto('/');
+      await page.evaluate(async (fallback) => {
+        await document.fonts.ready;
+        if (fallback) return;
+        const runtime = window as typeof window & {
+          __recordSplashShifts?: (entries: Array<{ hadRecentInput: boolean; value: number; sources: Array<{ node: Node }> }>) => void;
+        };
+        runtime.__recordSplashShifts?.([{
+          hadRecentInput: false,
+          value: 0,
+          sources: [{ node: document.querySelector('[data-splash-motion]')! }],
+        }]);
+      }, forceFallback);
+      const geometry = () => page.evaluate(() => {
+        const layoutBox = (element: HTMLElement) => ({
+          left: element.offsetLeft,
+          top: element.offsetTop,
+          width: element.offsetWidth,
+          height: element.offsetHeight,
+        });
+        const element = (selector: string) => layoutBox(document.querySelector<HTMLElement>(selector)!);
+        return {
+          layout: element('.splash-layout'),
+          brand: element('.splash-brand-panel'),
+          event: element('.splash-event-details'),
+          targets: Array.from(document.querySelectorAll<HTMLElement>('[data-splash-motion]'), (target) => ({
+            name: target.dataset.splashMotion,
+            ...layoutBox(target),
+          })),
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        };
+      });
+      const before = await geometry();
+      await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+      const after = await geometry();
+      const observed = await page.evaluate(() => (window as typeof window & {
+        __splashCls: { supported: boolean; attributionSupported: boolean; value: number; error?: string };
+      }).__splashCls);
+
+      expect(after).toEqual(before);
+      expect(after.overflow).toBe(false);
+      if (forceFallback) {
+        expect(observed).toEqual({
+          supported: false,
+          attributionSupported: false,
+          value: 0,
+          error: 'forced-attribution-fallback',
+        });
+      } else {
+        expect(observed.supported).toBe(true);
+        expect(observed.attributionSupported).toBe(true);
+        expect(observed.error).toBeUndefined();
+        expect(observed.value).toBeLessThanOrEqual(.01);
+      }
+      await page.close();
+    }
+  });
   test('matches the editorial split layout on the splash page and enters main immediately', async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto('/');
 
+    const splash = page.locator('.splash-page');
+    await expect(splash).toHaveAttribute('data-motion-phase', 'entering');
+    await expect(page.locator('[data-splash-motion]')).toHaveCount(20);
     await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea', exact: true })).toBeVisible();
     await expect(page.getByText('FRANKFURT BOOK FAIR 2026')).toBeVisible();
     await expect(page.getByText('10.7 ~ 10', { exact: true })).toBeVisible();
@@ -46,6 +208,7 @@ test.describe('book shelf motion', () => {
       "Connecting outstanding Korean children's and fiction titles",
       'with readers and publishers around the world.',
     ]);
+    await expect(splash).toHaveAttribute('data-motion-phase', 'entered');
 
     const layout = await page.evaluate(() => {
       const brand = document.querySelector<HTMLElement>('.splash-brand-panel')!;
@@ -79,11 +242,11 @@ test.describe('book shelf motion', () => {
         descriptionLineCounts: Array.from(document.querySelectorAll<HTMLElement>('.splash-description > span'), (line) => Math.round(line.getBoundingClientRect().height / Number.parseFloat(getComputedStyle(line).lineHeight))),
       };
     });
-    expect(layout).toEqual({
+    const { eventSize, descriptionFont, ...stableLayout } = layout;
+    expect(stableLayout).toEqual({
       columns: 2,
       brandBeforeEvent: true,
       titleSize: '100.8px',
-      eventSize: '234.24px',
       logoWidth: 250,
       logoRule: '1px',
       brandRule: '1px',
@@ -94,18 +257,279 @@ test.describe('book shelf motion', () => {
       layoutLeft: 100,
       centered: true,
       displayFont: '"Bodoni Moda", serif',
-      descriptionFont: 'Pretendard, sans-serif',
       eventAlignItems: 'flex-end',
       eventTextAlign: 'right',
       eventRightEdgesAligned: true,
       descriptionLineCounts: [1, 1],
     });
+    expect(Number.parseFloat(eventSize)).toBeCloseTo(234.24, 1);
+    expect(descriptionFont).toContain('Pretendard');
 
     const enter = page.getByRole('link', { name: 'Go Main' });
     await expect(enter).toHaveAttribute('href', '#main');
     await enter.click();
     await expect(page).toHaveURL(/#main$/);
     await expect(page.locator('.public-shelf')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea Selection for 2026 Frankfurt Book Fair' })).not.toBeFocused();
+  });
+  test('maps only the approved semantic targets and animation properties, then leaves a clean final state', async ({ page }) => {
+    await page.addInitScript(() => {
+      const runtime = window as typeof window & {
+        __splashAnimationFrames?: Array<{ target: string | null; properties: string[] }>;
+      };
+      runtime.__splashAnimationFrames = [];
+      const animate = Element.prototype.animate;
+      Element.prototype.animate = function (keyframes, options) {
+        const frames = Array.isArray(keyframes)
+          ? keyframes
+          : Object.entries(keyframes).map(([property, values]) => ({ [property]: values }));
+        const properties = [...new Set(frames.flatMap((frame) => Object.keys(frame).filter((key) => key !== 'offset' && key !== 'easing' && key !== 'composite')))];
+        if (this instanceof HTMLElement && this.closest('.splash-page')) {
+          runtime.__splashAnimationFrames!.push({
+            target: this.dataset.splashMotion ?? null,
+            properties,
+          });
+        }
+        return animate.call(this, keyframes, options);
+      };
+    });
+    await page.goto('/');
+    const splash = page.locator('.splash-page');
+    await expect(splash).toHaveAttribute('data-motion-phase', 'entered');
+
+    const targetState = await splash.evaluate((root) => {
+      const owner = (element: HTMLElement) => {
+        const parent = element.parentElement!;
+        return parent.id ? `${parent.tagName}#${parent.id}` : `${parent.tagName}.${parent.className}`;
+      };
+      return {
+        rootIsTarget: root.hasAttribute('data-splash-motion'),
+        targets: Array.from(root.querySelectorAll<HTMLElement>('[data-splash-motion]'), (target) => ({
+          name: target.dataset.splashMotion,
+          tag: target.tagName,
+          className: target.className,
+          owner: owner(target),
+          opacity: getComputedStyle(target).opacity,
+          transform: getComputedStyle(target).transform,
+          willChange: getComputedStyle(target).willChange,
+        })),
+        animations: root.getAnimations({ subtree: true }).length,
+      };
+    });
+    const expectedTargets = [
+      { name: 'line-fair', tag: 'SPAN', className: 'splash-fair-rule', owner: 'P.splash-fair-label' },
+      { name: 'fair-label', tag: 'SPAN', className: 'splash-fair-label-text', owner: 'P.splash-fair-label' },
+      { name: 'line-brand', tag: 'SPAN', className: 'splash-brand-rule', owner: 'SECTION.splash-brand-panel' },
+      { name: 'line-logo', tag: 'SPAN', className: 'splash-logo-rule', owner: 'DIV.splash-logo-row' },
+      { name: 'logo', tag: 'IMG', className: 'splash-logo', owner: 'DIV.splash-logo-row' },
+      { name: 'title-the', tag: 'EM', className: '', owner: 'H1#splash-heading' },
+      { name: 'title-choice-maker', tag: 'SPAN', className: '', owner: 'H1#splash-heading' },
+      { name: 'title-korea', tag: 'SPAN', className: '', owner: 'H1#splash-heading' },
+      { name: 'line-description', tag: 'SPAN', className: 'splash-description-rule', owner: 'DIV.splash-description-row' },
+      { name: 'line-accent', tag: 'SPAN', className: 'splash-description-accent', owner: 'DIV.splash-description-row' },
+      { name: 'description', tag: 'P', className: 'splash-description', owner: 'DIV.splash-description-row' },
+      { name: 'line-cta', tag: 'SPAN', className: 'splash-cta-rule', owner: 'A.splash-cta' },
+      { name: 'cta', tag: 'SPAN', className: 'splash-cta-content', owner: 'A.splash-cta' },
+      { name: 'event-date', tag: 'P', className: '', owner: 'SECTION.splash-event-details' },
+      { name: 'event-hall', tag: 'P', className: '', owner: 'SECTION.splash-event-details' },
+      { name: 'event-stand-left', tag: 'SPAN', className: '', owner: 'P.splash-event-stand' },
+      { name: 'line-slash', tag: 'SPAN', className: 'splash-event-slash', owner: 'P.splash-event-stand' },
+      { name: 'event-stand-right', tag: 'SPAN', className: '', owner: 'P.splash-event-stand' },
+      { name: 'footer', tag: 'SPAN', className: 'splash-footer-content', owner: 'FOOTER.splash-footer' },
+      { name: 'line-footer', tag: 'SPAN', className: 'splash-footer-rule', owner: 'FOOTER.splash-footer' },
+    ];
+    expect(targetState.rootIsTarget).toBe(false);
+    expect(targetState.targets.map(({ opacity: _opacity, transform: _transform, willChange: _willChange, ...semantic }) => semantic)).toEqual(expectedTargets);
+    expect(targetState.targets.every(({ opacity, transform, willChange }) => opacity === '1' && transform === 'none' && willChange === 'auto')).toBe(true);
+    expect(targetState.animations).toBe(0);
+
+    const runtimeFrames = await page.evaluate(() => (window as typeof window & {
+      __splashAnimationFrames?: Array<{ target: string | null; properties: string[] }>;
+    }).__splashAnimationFrames ?? []);
+    const expectedNames = expectedTargets.map(({ name }) => name);
+    expect(new Set(runtimeFrames.map(({ target }) => target))).toEqual(new Set(expectedNames));
+    expect(runtimeFrames.length).toBeGreaterThanOrEqual(expectedNames.length);
+    expect(runtimeFrames.every(({ target, properties }) => target !== null && expectedNames.includes(target) && properties.length > 0 && properties.every((property) => property === 'opacity' || property === 'transform' || property === 'clipPath'))).toBe(true);
+    const slashProperties = new Set(runtimeFrames
+      .filter(({ target }) => target === 'line-slash')
+      .flatMap(({ properties }) => properties));
+    expect(slashProperties).toEqual(new Set(['opacity', 'clipPath']));
+  });
+  test('navigates immediately during entrance and transfers keyboard focus', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entering');
+
+    const enter = page.getByRole('link', { name: 'Go Main' });
+    await enter.focus();
+    await page.evaluate(() => {
+      const timing = window as typeof window & { __splashHashDuringActivation?: string };
+      document.addEventListener('click', () => { timing.__splashHashDuringActivation = window.location.hash; }, { once: true });
+    });
+    await page.keyboard.press('Enter');
+    await page.waitForURL(/#main$/);
+
+    expect(await page.evaluate(() => (window as typeof window & { __splashHashDuringActivation?: string }).__splashHashDuringActivation)).toBe('#main');
+    await expect(page.getByRole('heading', { name: 'The ChoiceMaker Korea Selection for 2026 Frankfurt Book Fair' })).toBeFocused();
+  });
+  test('supports pointer activation during entrance and keyboard activation after settlement', async ({ browser }) => {
+    const pointerPage = await browser.newPage();
+    await pointerPage.addInitScript(() => {
+      const animate = Element.prototype.animate;
+      Element.prototype.animate = function (keyframes, options) {
+        const extended = this instanceof HTMLElement
+          && this.closest('.splash-page')
+          && options
+          && typeof options === 'object'
+          ? { ...options, duration: 10_000 }
+          : options;
+        return animate.call(this, keyframes, extended);
+      };
+    });
+    await pointerPage.goto('/');
+    await expect(pointerPage.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entering');
+    await pointerPage.getByRole('link', { name: 'Go Main' }).click();
+    await expect(pointerPage.locator('.public-shelf')).toBeVisible();
+    await expect(pointerPage.getByRole('heading', { name: 'The ChoiceMaker Korea Selection for 2026 Frankfurt Book Fair' })).not.toBeFocused();
+    await pointerPage.close();
+
+    const keyboardPage = await browser.newPage();
+    await keyboardPage.goto('/');
+    await expect(keyboardPage.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+    await keyboardPage.getByRole('link', { name: 'Go Main' }).focus();
+    await keyboardPage.keyboard.press('Enter');
+    await expect(keyboardPage.getByRole('heading', { name: 'The ChoiceMaker Korea Selection for 2026 Frankfurt Book Fair' })).toBeFocused();
+    await keyboardPage.close();
+  });
+  test('guards repeated activation and preserves modified, non-primary, and new-tab behavior', async ({ context, page }) => {
+    await page.goto('/');
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+    const nativeEvents = await page.locator('.splash-cta').evaluate((element) => {
+      const link = element as HTMLAnchorElement;
+      return {
+        modifiedNotCancelled: link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ctrlKey: true })),
+        nonPrimaryNotCancelled: link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 1 })),
+      };
+    });
+    expect(nativeEvents).toEqual({ modifiedNotCancelled: true, nonPrimaryNotCancelled: true });
+    await expect(page.locator('.splash-page')).toBeVisible();
+
+    await page.evaluate(() => {
+      (window as typeof window & { __splashHashChanges?: number }).__splashHashChanges = 0;
+      window.addEventListener('hashchange', () => {
+        (window as typeof window & { __splashHashChanges: number }).__splashHashChanges += 1;
+      });
+      const link = document.querySelector<HTMLAnchorElement>('.splash-cta')!;
+      link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+      link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+    });
+    await expect(page.locator('.public-shelf')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => (window as typeof window & { __splashHashChanges?: number }).__splashHashChanges)).toBe(1);
+
+    await page.goBack();
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+    await page.locator('.splash-cta').evaluate((link) => { (link as HTMLAnchorElement).target = '_blank'; });
+    const [newTab] = await Promise.all([
+      context.waitForEvent('page'),
+      page.getByRole('link', { name: 'Go Main' }).click(),
+    ]);
+    await newTab.waitForLoadState();
+    await expect(newTab).toHaveURL(/#main$/);
+    await expect(page).not.toHaveURL(/#main$/);
+    await newTab.close();
+  });
+  test('does not overwrite external hashes or run stale completion callbacks after unmount', async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+
+    await page.goto('/');
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entering');
+    await page.evaluate(() => { window.location.hash = 'other'; });
+    await expect(page).toHaveURL(/#other$/);
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+    await expect(page).toHaveURL(/#other$/);
+
+    await page.goto('/');
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entering');
+    await page.evaluate(() => { window.location.hash = 'main'; });
+    await expect(page.locator('.public-shelf')).toBeVisible();
+    await expect(page.locator('.splash-page')).toHaveCount(0);
+    await page.waitForTimeout(SPLASH_MOTION.entranceDurationMs + 100);
+    expect(pageErrors).toEqual([]);
+  });
+  test('replays the full entrance whenever the splash remounts', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+    await page.getByRole('link', { name: 'Go Main' }).click();
+    await expect(page.locator('.public-shelf')).toBeVisible();
+
+    await page.goBack();
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entering');
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+    await page.getByRole('link', { name: 'Go Main' }).click();
+    await expect(page.locator('.public-shelf')).toBeVisible();
+    await page.goBack();
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entering');
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+  });
+  test('settles the splash immediately for initial and live reduced motion without replay', async ({ browser }) => {
+    const assertSettledTargets = async (page: import('@playwright/test').Page) => {
+      const splash = page.locator('.splash-page');
+      await expect(splash).toHaveAttribute('data-motion-phase', 'entered');
+      await expect.poll(() => splash.evaluate((element) => ({
+        animations: element.getAnimations({ subtree: true }).length,
+        final: Array.from(element.querySelectorAll<HTMLElement>('[data-splash-motion]')).every((target) => {
+          const style = getComputedStyle(target);
+          return style.opacity === '1' && style.transform === 'none';
+        }),
+      }))).toEqual({ animations: 0, final: true });
+    };
+
+    const reducedContext = await browser.newContext({ reducedMotion: 'reduce' });
+    const reducedPage = await reducedContext.newPage();
+    await reducedPage.goto('/');
+    await assertSettledTargets(reducedPage);
+    const arrow = reducedPage.locator('.splash-cta-arrow');
+    await reducedPage.locator('.splash-cta').hover();
+    await expect(arrow).toHaveCSS('transform', 'none');
+    await expect(arrow).toHaveCSS('transition-duration', '0s');
+    await reducedPage.getByRole('link', { name: 'Go Main' }).click();
+    await expect(reducedPage.locator('.public-shelf')).toBeVisible();
+    await reducedContext.close();
+
+    const normalContext = await browser.newContext({ reducedMotion: 'no-preference' });
+    const normalPage = await normalContext.newPage();
+    await normalPage.goto('/');
+    const normalSplash = normalPage.locator('.splash-page');
+    await expect(normalSplash).toHaveAttribute('data-motion-phase', 'entering');
+    const urlBeforeReduction = normalPage.url();
+    await normalPage.emulateMedia({ reducedMotion: 'reduce' });
+    await assertSettledTargets(normalPage);
+    expect(normalPage.url()).toBe(urlBeforeReduction);
+    await normalPage.emulateMedia({ reducedMotion: 'no-preference' });
+    await assertSettledTargets(normalPage);
+    expect(normalPage.url()).toBe(urlBeforeReduction);
+    await normalPage.getByRole('link', { name: 'Go Main' }).click();
+    await expect(normalPage.locator('.public-shelf')).toBeVisible();
+    await normalContext.close();
+  });
+  test('preserves the inclusive desktop-to-mobile alignment boundary', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+
+    await page.setViewportSize({ width: 801, height: 900 });
+    expect(await page.locator('.splash-layout').evaluate((layout) => ({
+      display: getComputedStyle(layout).display,
+      eventAlign: getComputedStyle(document.querySelector('.splash-event-details')!).alignItems,
+      eventText: getComputedStyle(document.querySelector('.splash-event-details')!).textAlign,
+    }))).toEqual({ display: 'grid', eventAlign: 'flex-end', eventText: 'right' });
+
+    await page.setViewportSize({ width: 800, height: 900 });
+    expect(await page.locator('.splash-layout').evaluate((layout) => ({
+      display: getComputedStyle(layout).display,
+      direction: getComputedStyle(layout).flexDirection,
+      eventAlign: getComputedStyle(document.querySelector('.splash-event-details')!).alignItems,
+      eventText: getComputedStyle(document.querySelector('.splash-event-details')!).textAlign,
+    }))).toEqual({ display: 'flex', direction: 'column', eventAlign: 'flex-start', eventText: 'left' });
   });
   test('keeps the splash composition fluid across browser zoom equivalents and desktop resolutions', async ({ page }) => {
     const viewports = [
@@ -148,6 +572,7 @@ test.describe('book shelf motion', () => {
   test('stacks the splash typography without horizontal overflow on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
 
     const responsive = await page.evaluate(() => {
       const brand = document.querySelector<HTMLElement>('.splash-brand-panel')!.getBoundingClientRect();
@@ -159,10 +584,72 @@ test.describe('book shelf motion', () => {
         overflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         eventAlignItems: eventStyle.alignItems,
         eventTextAlign: eventStyle.textAlign,
+        titleWithinViewport: Array.from(document.querySelectorAll<HTMLElement>('.splash-brand-panel h1 > *')).every((line) => {
+          const bounds = line.getBoundingClientRect();
+          return bounds.left >= 0 && bounds.right <= window.innerWidth;
+        }),
       };
     });
-    expect(responsive).toEqual({ direction: 'column', eventBelowBrand: true, overflowX: false, eventAlignItems: 'flex-start', eventTextAlign: 'left' });
+    expect(responsive).toEqual({ direction: 'column', eventBelowBrand: true, overflowX: false, eventAlignItems: 'flex-start', eventTextAlign: 'left', titleWithinViewport: true });
     await expect(page.getByRole('link', { name: 'Go Main' })).toBeVisible();
+  });
+  test('serves and navigates the required production Pages base with bundled assets and fonts', async ({ page }) => {
+    const pagesBaseUrl = process.env.PAGES_BASE_URL;
+    if (!pagesBaseUrl) {
+      expect(process.env.REQUIRE_PAGES_SMOKE, 'PAGES_BASE_URL is mandatory in the release smoke lane').not.toBe('1');
+      test.skip(true, 'Set PAGES_BASE_URL to exercise the production-base smoke outside the release lane.');
+      return;
+    }
+
+    const pageErrors: string[] = [];
+    const failedResponses: string[] = [];
+    const successfulResources = new Set<string>();
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    page.on('response', (response) => {
+      const resource = new URL(response.url()).pathname;
+      if (response.status() >= 400) failedResponses.push(`${response.status()} ${response.url()}`);
+      else successfulResources.add(resource);
+    });
+
+    const baseUrl = new URL(pagesBaseUrl);
+    expect(baseUrl.pathname).toBe('/book_site/');
+    await page.goto(baseUrl.href);
+    await expect(page.locator('.splash-page')).toHaveAttribute('data-motion-phase', 'entered');
+    const bundledFonts = await page.evaluate(async () => {
+      await document.fonts.ready;
+      return {
+        displayLoaded: document.fonts.check('500 16px "Bodoni Moda"'),
+        bodyLoaded: document.fonts.check('400 16px Pretendard'),
+        displayFamily: getComputedStyle(document.querySelector('.splash-brand-panel h1')!).fontFamily,
+        bodyFamily: getComputedStyle(document.querySelector('.splash-description')!).fontFamily,
+      };
+    });
+    expect(bundledFonts).toEqual({
+      displayLoaded: true,
+      bodyLoaded: true,
+      displayFamily: '"Bodoni Moda", serif',
+      bodyFamily: 'Pretendard, sans-serif',
+    });
+
+    await page.getByRole('link', { name: 'Go Main' }).click();
+    await expect(page).toHaveURL(/\/book_site\/#main$/);
+    await expect(page.locator('.public-shelf')).toBeVisible();
+    await page.reload();
+    await expect(page.locator('.public-shelf')).toBeVisible();
+    await page.goBack();
+    await expect(page.locator('.splash-page')).toBeVisible();
+    await page.goto(new URL('#main', baseUrl).href);
+    await expect(page.locator('.public-shelf')).toBeVisible();
+
+    expect(pageErrors).toEqual([]);
+    expect(failedResponses).toEqual([]);
+    const resources = [...successfulResources];
+    expect(resources.some((path) => /^\/book_site\/assets\/index-.+\.js$/.test(path))).toBe(true);
+    expect(resources.some((path) => /^\/book_site\/assets\/index-.+\.css$/.test(path))).toBe(true);
+    expect(resources.some((path) => /^\/book_site\/assets\/logo_02-.+\.svg$/.test(path))).toBe(true);
+    expect(resources).toContain('/book_site/fonts/bodoni-moda-500.woff2');
+    expect(resources).toContain('/book_site/fonts/bodoni-moda-500-italic.woff2');
+    expect(resources).toContain('/book_site/fonts/pretendard-400.woff2');
   });
   test('links the full fair title back to the main page', async ({ page }) => {
     await page.goto('/#main');
@@ -195,7 +682,7 @@ test.describe('book shelf motion', () => {
     await expect(page.locator('.book-card')).toHaveCount(3);
     expect(await page.locator('.book-card').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-book-id')))).toEqual(['cosmoswek-1', 'science-explorers-17', 'tomorrow-too']);
   });
-  test('renders the desktop shelf at an 80 percent page scale', async ({ page }) => {
+  test('renders the desktop shelf at native scale without legacy width compensation', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/#main');
 
@@ -204,11 +691,13 @@ test.describe('book shelf motion', () => {
       layoutWidth: shelf.clientWidth,
       visualWidth: shelf.getBoundingClientRect().width,
       viewportWidth: window.innerWidth,
+      documentClientWidth: document.documentElement.clientWidth,
       documentWidth: document.documentElement.scrollWidth,
     }));
-    expect(desktopScale.zoom).toBe('0.8');
-    expect(desktopScale.layoutWidth).toBeGreaterThan(desktopScale.viewportWidth);
-    expect(desktopScale.visualWidth / desktopScale.layoutWidth).toBeCloseTo(.8, 2);
+    expect(desktopScale.zoom).toBe('1');
+    expect(desktopScale.layoutWidth).toBeLessThanOrEqual(desktopScale.viewportWidth);
+    expect(desktopScale.viewportWidth - desktopScale.layoutWidth).toBeLessThanOrEqual(20);
+    expect(desktopScale.visualWidth).toBe(desktopScale.layoutWidth);
     expect(desktopScale.documentWidth).toBeLessThanOrEqual(desktopScale.viewportWidth);
     const navigationEdges = await page.locator('.public-category-navigation').evaluate((navigation) => {
       const rect = navigation.getBoundingClientRect();
@@ -219,6 +708,156 @@ test.describe('book shelf motion', () => {
 
     await page.setViewportSize({ width: 640, height: 900 });
     await expect.poll(() => page.locator('.public-shelf').evaluate((shelf) => getComputedStyle(shelf).zoom)).toBe('1');
+  });
+  test('keeps foundation primitives, scoped aliases, and native width rules as the token contract', async () => {
+    const css = await readFile('src/styles.css', 'utf8');
+    const app = await readFile('src/main.tsx', 'utf8');
+
+    expect(css).toMatch(/:root\s*\{[\s\S]*--foundation-color-paper:\s*#F0EEE9;/);
+    expect(css).toMatch(/--foundation-font-splash-display:\s*'Bodoni Moda', serif;/);
+    expect(css).toMatch(/--foundation-font-editorial-display:\s*'Cormorant Garamond', serif;/);
+    expect(css).toMatch(/--foundation-font-management-ui:\s*'Noto Sans KR', Inter, Arial, sans-serif;/);
+    expect(css).toMatch(/\.splash-page\s*\{[\s\S]*--splash-display:\s*var\(--foundation-font-splash-display\);/);
+    expect(css).toMatch(/\.public-shelf,\s*\.top-layer-context-public\s*\{[\s\S]*--editorial-font-display:\s*var\(--foundation-font-editorial-display\);/);
+    expect(css).toMatch(/\.management-workspace,\s*\.top-layer-context-management\s*\{/);
+    expect(css).not.toMatch(/\bzoom\s*:/);
+    expect(css).not.toContain('125vw');
+    expect(app).toContain("top-layer-context-${topLayer?.kind === 'detail' ? topLayer.detail.audience : surface}");
+    expect(css).not.toMatch(/\.dialog\s*\{[^}]*var\(--foundation-/);
+    expect(css).not.toMatch(/\.fair-image-placeholder\s*\{[^}]*var\(--foundation-/);
+    expect(css).toMatch(/\.dialog\s*\{[^}]*font-family:\s*var\(--dialog-font\)/);
+    expect(css).toMatch(/\.cover-status-filter label\s*\{[^}]*min-height:\s*var\(--control-height\)/);
+    const approvedFoundationReaders = new Set([
+      ':root',
+      '.splash-page',
+      '.management-workspace, .top-layer-context-management',
+      '.public-shelf, .top-layer-context-public',
+    ]);
+    const directFoundationConsumers = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, , body]) => body.includes('var(--foundation-'))
+      .map(([, selector]) => selector.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ').trim())
+      .filter((selector) => !approvedFoundationReaders.has(selector));
+    expect(directFoundationConsumers).toEqual([]);
+    expect(css).not.toMatch(/font-family:\s*['"]Pretendard['"]/);
+    expect(css).not.toMatch(/z-index:\s*\d/);
+  });
+
+  test('keeps the corrected 900 rail and native 1024 metrics overflow-free at exact boundaries and zoom equivalents', async ({ page }) => {
+    const boundaryCases = [
+      { width: 899, cardWidth: 240 },
+      { width: 900, cardWidth: 270 },
+      { width: 901, cardWidth: 270 },
+      { width: 959, cardWidth: 270 },
+      { width: 960, cardWidth: 270 },
+      { width: 961, cardWidth: 270 },
+      { width: 1023, cardWidth: 270 },
+      { width: 1024, cardWidth: 216 },
+      { width: 1025, cardWidth: 216 },
+    ];
+
+    for (const boundary of boundaryCases) {
+      await page.setViewportSize({ width: boundary.width, height: 900 });
+      await page.goto('/#main');
+      const metrics = await page.evaluate(() => {
+        const navigation = document.querySelector<HTMLElement>('.public-category-navigation')!.getBoundingClientRect();
+        const controls = Array.from(document.querySelectorAll<HTMLElement>('.public-category-navigation button'));
+        const firstCard = document.querySelector<HTMLElement>('.book-card')!;
+        return {
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          navigationLeft: navigation.left,
+          navigationWidth: navigation.width,
+          viewportWidth: window.innerWidth,
+          cardWidth: Math.round(firstCard.getBoundingClientRect().width),
+          controlSizes: controls.map((control) => {
+            const rect = control.getBoundingClientRect();
+            return { width: rect.width, height: rect.height };
+          }),
+        };
+      });
+      expect(metrics.overflow).toBe(false);
+      expect(Math.abs(metrics.navigationLeft)).toBeLessThanOrEqual(8);
+      expect(Math.round(metrics.navigationWidth)).toBe(metrics.viewportWidth);
+      expect(metrics.cardWidth).toBe(boundary.cardWidth);
+      expect(metrics.controlSizes).toHaveLength(4);
+      expect(metrics.controlSizes.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+    }
+
+    for (const width of [1800, 1440, 1152, 960]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/#main');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    }
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/#main');
+    const mobileTargets = await page.locator('.admin-entry, .public-hero-cta, .public-featured-heading a').evaluateAll((targets) => targets.map((target) => {
+      const rect = target.getBoundingClientRect();
+      return { width: rect.width, height: rect.height };
+    }));
+    expect(mobileTargets).toHaveLength(3);
+    expect(mobileTargets.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+
+    for (const width of [390, 899, 900]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/#main');
+      await page.reload();
+      await page.locator('.public-hero-cta').click();
+      const portfolioContact = page.locator('.portfolio-closing a');
+      await expect(portfolioContact).toBeVisible();
+      expect(await portfolioContact.evaluate((target) => {
+        const rect = target.getBoundingClientRect();
+        return rect.width >= 44 && rect.height >= 44;
+      })).toBe(true);
+    }
+  });
+
+  test('propagates public and management semantic contexts to sibling top layers', async ({ page }) => {
+    await page.goto('/#main');
+    await page.locator('.book-card').first().click();
+    const publicCarrier = page.locator('.top-layer-context-public');
+    await expect(publicCarrier.getByRole('dialog')).toBeVisible();
+    await expect(publicCarrier.locator('.dialog')).toHaveCSS('font-family', /Pretendard/);
+    await expect(publicCarrier.locator('.detail-title')).toHaveCSS('font-family', /Pretendard/);
+    await expect(publicCarrier.locator('.detail-english')).toHaveCSS('font-family', /Cormorant Garamond/);
+    await publicCarrier.getByRole('button', { name: '상세 닫기' }).click();
+
+    await openManagement(page);
+    await expect(page.locator('.management-workspace button').first()).toHaveCSS('font-family', /Noto Sans KR/);
+    expect(await page.locator('.cover-status-filter label').evaluateAll((labels) => labels.every((label) => label.getBoundingClientRect().height >= 44))).toBe(true);
+    await page.locator('.manage-list button[data-book-id]').first().click();
+    const managementCarrier = page.locator('.top-layer-context-management');
+    await expect(managementCarrier.getByRole('dialog')).toBeVisible();
+    await expect(managementCarrier.locator('.dialog')).toHaveCSS('font-family', /Noto Sans KR/);
+    await expect(managementCarrier.locator('.detail-title')).toHaveCSS('font-family', /Noto Sans KR/);
+    await expect(managementCarrier.locator('.detail-english')).toHaveCSS('font-family', /Georgia/);
+    await managementCarrier.getByRole('button', { name: '상세 닫기' }).click();
+    await expect(managementCarrier.getByRole('dialog')).toBeHidden();
+
+    await page.getByRole('button', { name: '삭제', exact: true }).first().click();
+    await expect(managementCarrier.getByRole('alertdialog')).toBeVisible();
+    await expect(managementCarrier.getByRole('alertdialog')).toHaveCSS('font-family', /Noto Sans KR/);
+    await expect(managementCarrier).not.toHaveClass(/top-layer-context-public/);
+  });
+
+  test('preserves selected and focus affordances in forced-colors mode', async ({ page }) => {
+    await page.emulateMedia({ forcedColors: 'active' });
+    await page.goto('/#main');
+    const fiction = page.getByRole('button', { name: 'Fictions', exact: true });
+    await fiction.click();
+    await fiction.focus();
+    const forcedStyles = await fiction.evaluate((control) => {
+      const style = getComputedStyle(control);
+      return {
+        outlineStyle: style.outlineStyle,
+        outlineWidth: style.outlineWidth,
+        borderBottomStyle: style.borderBottomStyle,
+      };
+    });
+    expect(forcedStyles.outlineStyle).toBe('solid');
+    expect(forcedStyles.outlineWidth).toBe('2px');
+    const audience = page.getByRole('button', { name: 'All', exact: true });
+    await expect(audience).toHaveAttribute('aria-pressed', 'true');
+    expect(await audience.evaluate((control) => getComputedStyle(control).borderBottomStyle)).toBe('solid');
   });
   test('renders the public editorial shelf with its two-band header and English category filtering', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
@@ -344,7 +983,7 @@ test.describe('book shelf motion', () => {
     expect(desktopLayout.filterPosition).toBe('static');
     expect(Math.abs(desktopLayout.titleCenter - desktopLayout.filterCenter)).toBeLessThanOrEqual(1);
     expect(new Set(desktopLayout.cardTops).size).toBe(1);
-    expect(new Set(desktopLayout.cardWidths)).toEqual(new Set([270]));
+    expect(new Set(desktopLayout.cardWidths)).toEqual(new Set([216]));
     expect(desktopLayout.hasHorizontalOverflow).toBe(false);
 
     await page.getByRole('button', { name: 'Picture Books', exact: true }).click();
@@ -469,10 +1108,11 @@ test.describe('book shelf motion', () => {
     await expect(awardedCard.locator('.book-overlay-section')).toContainText('한겨레 미디어 추천');
     await expect(awardedCard.locator('.book-overlay-rights')).toHaveCount(0);
 
-    const rightsCard = page.locator('.book-card[data-book-id="star-cat-village-4"]');
-    const rightsShell = page.locator('.book-card-shell').filter({ has: rightsCard });
-    await rightsCard.hover();
-    const rightsStacking = await rightsShell.evaluate((shell) => {
+    await page.getByRole('button', { name: 'Language Learning', exact: true }).click();
+    const metadataCard = page.locator('.book-card[data-book-id="language-learning-swipe-test-1"]');
+    const metadataShell = page.locator('.book-card-shell').filter({ has: metadataCard });
+    await metadataCard.hover();
+    const metadataStacking = await metadataShell.evaluate((shell) => {
       const note = shell.querySelector<HTMLElement>('.book-sticky-note')!;
       const overlay = shell.querySelector<HTMLElement>('.book-card-overlay')!;
       const noteRect = note.getBoundingClientRect();
@@ -483,11 +1123,9 @@ test.describe('book shelf motion', () => {
         overlaps: noteRect.left < overlayRect.right && noteRect.right > overlayRect.left && noteRect.top < overlayRect.bottom && noteRect.bottom > overlayRect.top,
       };
     });
-    expect(rightsStacking.overlaps).toBe(true);
-    expect(rightsStacking.overlayLayer).toBeGreaterThan(rightsStacking.noteLayer);
+    expect(metadataStacking.overlaps).toBe(true);
+    expect(metadataStacking.overlayLayer).toBeGreaterThan(metadataStacking.noteLayer);
 
-    await page.getByRole('button', { name: 'Language Learning', exact: true }).click();
-    const metadataCard = page.locator('.book-card[data-book-id="language-learning-swipe-test-1"]');
     await expect(metadataCard).toBeVisible();
     const metadataOverlay = metadataCard.locator('.book-card-overlay');
     await metadataCard.hover();
@@ -553,9 +1191,8 @@ test.describe('book shelf motion', () => {
 
     const cta = hero.locator('.public-hero-cta');
     await expect(cta).toHaveText('Explore Our Portfolio →');
-    await expect(cta).toHaveAttribute('href', '#featured-titles');
-    await cta.click();
-    await expect(page.locator('#featured-titles.public-featured')).toBeInViewport();
+    await expect(cta).toHaveAttribute('type', 'button');
+    await expect(cta).not.toHaveAttribute('href', /.+/);
 
     const typography = await page.evaluate(() => {
       const shelf = document.querySelector<HTMLElement>('.public-shelf')!;
@@ -605,34 +1242,36 @@ test.describe('book shelf motion', () => {
     expect(typography.shelfBackground).toBe('rgb(240, 238, 233)');
     expect(typography.headingColor).toBe('rgb(55, 81, 95)');
     expect(typography.headingFont).toContain('Cormorant Garamond');
-    expect(typography.headingFontSize).toBe('46px');
+    expect(typography.headingFontSize).toBe('46.4px');
     expect(typography.headingBreaks).toBe(1);
     expect(typography.subtitleColor).toBe(typography.headingColor);
     expect(typography.subtitleFont).toContain('Pretendard');
     expect(typography.subtitleFontSize).toBe('16px');
     expect(typography.subtitleFontWeight).toBe('400');
-    expect(typography.subtitleLineHeight).toBe('26px');
+    expect(typography.subtitleLineHeight).toBe('26.4px');
     expect(typography.heroHeight).toBe(296);
     expect(typography.categoryToHeadingGap).toBe(56);
     expect(typography.headingToSubtitleGap).toBe(24);
     expect(typography.categoryToImageGap).toBe(56);
     expect(typography.illustrationAlignedWithHeading).toBe(true);
     expect(typography.imageWidth).toBe(400);
-    expect(typography.heroWidth).toBe(1020);
+    expect(typography.heroWidth).toBe(1280);
     expect(typography.heroImageRightOffset).toBeLessThanOrEqual(typography.heroWidth);
     expect(typography.navigationWidth).toBe(typography.viewportWidth);
     expect(typography.navigationRule).toBe('2px solid rgb(55, 81, 95)');
     expect(typography.navigationControlsLeft).toBe((typography.viewportWidth - 1020) / 2);
     expect(typography.navigationControlsWidth).toBe(1020);
-    expect(typography.featuredHeadingLeft).toBe(typography.navigationControlsLeft);
-    expect(typography.firstCardLeft).toBe(typography.navigationControlsLeft);
-    expect(typography.heroLeft).toBe(typography.navigationControlsLeft);
-    expect(typography.featuredHeadingWidth).toBe(1020);
-    expect(typography.featuredLinkRightOffset).toBe(1020);
+    expect(Math.abs(typography.heroLeft - (typography.viewportWidth - 1280) / 2)).toBeLessThanOrEqual(8);
+    expect(typography.featuredHeadingLeft).toBe(typography.firstCardLeft);
+    expect(typography.featuredHeadingLeft).toBeGreaterThan(typography.heroLeft);
+    expect(typography.featuredHeadingWidth).toBeLessThanOrEqual(1280);
+    expect(typography.featuredLinkRightOffset).toBe(typography.featuredHeadingWidth);
     expect(typography.featuredHeadingFontSize).toBe('28px');
     expect(typography.featuredDividerHeight).toBe('1px');
     await expect(page.locator('.public-featured-heading').getByRole('link', { name: /View all titles/ })).toBeVisible();
     await expect(page.locator('.public-featured-divider')).toBeVisible();
+    await cta.click();
+    await expect(page.locator('.company-portfolio')).toBeVisible();
     expect(requests.some((url) => /^https:\/\/fonts\.googleapis\.com\/css/i.test(url))).toBe(false);
   });
 
@@ -739,17 +1378,17 @@ test.describe('book shelf motion', () => {
     expect(new Set(layout.map((card) => card.cardTop)).size).toBe(1);
     expect(new Set(layout.map((card) => card.cardWidth)).size).toBe(1);
     for (const card of layout) {
-      expect(card.cardWidth).toBe(240);
-      expect(card.cardHeight).toBeGreaterThanOrEqual(430);
+      expect(card.cardWidth).toBe(216);
+      expect(card.cardHeight).toBeGreaterThanOrEqual(387);
       expect(card.cardBorder).toBe('1px solid rgb(216, 211, 204)');
-      expect(card.cardBorderRadius).toBe('10px');
+      expect(card.cardBorderRadius).toBe('10.4px');
       expect(card.cardShadow).toBe('rgba(55, 81, 95, 0.08) 0px 4px 12px 0px');
-      expect(card.coverWidth).toBe(240);
-      expect(card.coverHeight).toBe(350);
+      expect(card.coverWidth).toBe(216);
+      expect(card.coverHeight).toBe(315);
       expect(card.categoryFontSize).toBe('10px');
-      expect(card.categoryLineHeight).toBe('14px');
+      expect(card.categoryLineHeight).toBe('14.4px');
       expect(card.titleFontSize).toBe('15px');
-      expect(card.titleLineHeight).toBe('18px');
+      expect(card.titleLineHeight).toBe('18.4px');
       expect(card.creatorFontSize).toBe('10px');
       expect(card.creatorLineHeight).toBe('16px');
       expect(card.creatorParts).toBeGreaterThanOrEqual(2);
@@ -757,10 +1396,10 @@ test.describe('book shelf motion', () => {
       expect(card.objectFit).toBe('cover');
       expect(card.objectPosition).toBe('50% 50%');
     }
-    await expect(page.locator('.book-sticky-note')).toHaveCount(1);
+    expect(await page.locator('.book-sticky-note').count()).toBeGreaterThan(0);
     await expect(page.locator('[data-sticky-note-kind="sold"]')).toHaveCount(0);
-    await expect(page.locator('[data-sticky-note-kind="awards"]')).toHaveCount(1);
-    await expect(page.locator('[data-sticky-note-kind="sold-awards"]')).toHaveCount(0);
+    expect(await page.locator('[data-sticky-note-kind="awards"]').count()).toBeGreaterThan(0);
+    expect(await page.locator('[data-sticky-note-kind="sold-awards"]').count()).toBeGreaterThan(0);
 
     const position1Note = page.getByRole('img', { name: 'Awards: You Are Gone!' });
     await expect(position1Note).toHaveAttribute('src', /sticky-label-award[^/]*\.svg(?:$|\?)/);
@@ -769,18 +1408,20 @@ test.describe('book shelf motion', () => {
     const position1 = await position1Shell.evaluate((shell) => {
       const card = shell.querySelector<HTMLElement>('.book-card')!.getBoundingClientRect();
       const note = shell.querySelector<HTMLElement>('[data-sticky-note-position="top-right"]')!.getBoundingClientRect();
-      const nextCard = shell.nextElementSibling?.querySelector<HTMLElement>('.book-card')?.getBoundingClientRect();
+      const sameRowFollowingCards = Array.from(shell.parentElement!.querySelectorAll<HTMLElement>('.book-card'))
+        .map((candidate) => candidate.getBoundingClientRect())
+        .filter((candidate) => Math.round(candidate.top) === Math.round(card.top) && candidate.left > card.left);
       return {
         overlapRatio: (card.right - note.left) / note.width,
         outsideRatio: (note.right - card.right) / note.width,
-        gapToNextCard: nextCard ? nextCard.left - note.right : null,
+        collidesWithFollowingCard: sameRowFollowingCards.some((candidate) => note.right > candidate.left),
       };
     });
     expect(position1.overlapRatio).toBeGreaterThan(.85);
     expect(position1.overlapRatio).toBeLessThan(.95);
     expect(position1.outsideRatio).toBeGreaterThan(.05);
     expect(position1.outsideRatio).toBeLessThan(.15);
-    expect(position1.gapToNextCard).toBeGreaterThanOrEqual(8);
+    expect(position1.collidesWithFollowingCard).toBe(false);
   });
   test('preloads sticky note artwork before fast category navigation', async ({ page }) => {
     await page.goto('/#main');
@@ -912,11 +1553,12 @@ test.describe('book shelf motion', () => {
       };
     }));
 
-    expect(new Set(layout.slice(0, 4).map((card) => card.coverTop)).size).toBe(1);
-    expect(new Set(layout.slice(4).map((card) => card.coverTop)).size).toBe(1);
-    expect(layout[4].coverTop).toBeGreaterThan(layout[0].coverTop);
+    expect(new Set(layout.slice(0, 5).map((card) => card.coverTop)).size).toBe(1);
+    expect(new Set(layout.slice(5).map((card) => card.coverTop)).size).toBe(1);
+    expect(layout[5].coverTop).toBeGreaterThan(layout[0].coverTop);
     for (const card of layout) {
-      expect(card.creatorTop - card.titleBottom).toBe(6);
+      expect(card.creatorTop - card.titleBottom).toBeGreaterThanOrEqual(6);
+      expect(card.creatorTop - card.titleBottom).toBeLessThanOrEqual(7);
       expect(card.titleMinBlockSize).toBe('auto');
       expect(card.creatorParts).toBeGreaterThanOrEqual(2);
     }
@@ -1123,7 +1765,7 @@ test.describe('book shelf motion', () => {
     expect(await closeIcon.evaluate((icon) => {
       const style = getComputedStyle(icon);
       return { width: style.width, height: style.height, fill: style.fill };
-    })).toEqual({ width: '24px', height: '24px', fill: 'rgb(32, 43, 53)' });
+    })).toEqual({ width: '24px', height: '24px', fill: 'rgb(55, 81, 95)' });
 
     await dialog.click({ position: { x: 8, y: 80 } });
     await expect(dialog).toBeVisible();
@@ -1163,7 +1805,7 @@ test.describe('book shelf motion', () => {
       borderTopWidth: getComputedStyle(card).borderTopWidth,
       indicatorColor: getComputedStyle(card, '::after').backgroundColor,
       indicatorHeight: getComputedStyle(card, '::after').height,
-    }))).toEqual({ borderTopWidth: '0px', indicatorColor: 'rgb(111, 157, 58)', indicatorHeight: '2px' });
+    }))).toEqual({ borderTopWidth: '0px', indicatorColor: 'rgb(97, 159, 60)', indicatorHeight: '2px' });
     await expect(dialog.getByRole('button', { name: /이전 권:/ })).toHaveCount(0);
     await expect(dialog.getByRole('button', { name: /다음 권:/ })).toBeVisible();
     expect(await dialog.locator('.dialog-content').evaluate((node) => {

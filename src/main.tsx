@@ -1,4 +1,4 @@
-import { FormEvent, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent, useEffect, useId, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent, useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
@@ -11,6 +11,7 @@ import stickyNoteAwards from './assets/sticky-label-award.svg?no-inline';
 import stickyNoteSold from './assets/sticky-label-sold.svg?no-inline';
 import stickyNoteSoldAwards from './assets/sticky-label-sold-award.svg?no-inline';
 import awardIcon from '../award-outline.png';
+import { SPLASH_MOTION, canCompleteSplashEntrance, commitSplashEntry, type SplashLineMotionItem, type SplashTextMotionItem, splashMotionTransition } from './motion';
 import moonFogIcon from '../moon-fog-outline.png';
 
 type CoverFit = 'auto' | 'cover' | 'contain';
@@ -305,6 +306,7 @@ function App() {
   const [topLayer, setTopLayer] = useState<TopLayer | null>(null);
   const [notice, announce] = useAnnouncer();
   const publicHeading = useRef<HTMLHeadingElement>(null);
+  const pendingMainFocus = useRef(false);
   const managementHeading = useRef<HTMLHeadingElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const priorSurface = useRef(surface);
@@ -315,6 +317,11 @@ function App() {
     window.addEventListener('hashchange', syncSitePage);
     return () => window.removeEventListener('hashchange', syncSitePage);
   }, []);
+  useEffect(() => {
+    if (sitePage !== 'main' || !pendingMainFocus.current) return;
+    pendingMainFocus.current = false;
+    publicHeading.current?.focus({ preventScroll: true });
+  }, [sitePage]);
   useEffect(() => {
     if (priorSurface.current === surface) return;
     priorSurface.current = surface;
@@ -409,10 +416,12 @@ function App() {
     </div>
     <BookGrid books={shelfBooks} onOpen={(book, event) => openDetail('public', { kind: 'persisted', bookId: book.id }, event.currentTarget)} selected={selected.length > 0} hasActiveBooks={activeBooks.length > 0} />
   </section>;
-  if (sitePage === 'splash') return <SplashPage onEnter={() => {
+  const enterMain = (focusMainHeading: boolean) => {
+    pendingMainFocus.current = focusMainHeading;
     window.location.hash = 'main';
     setSitePage('main');
-  }} />;
+  };
+  if (sitePage === 'splash') return <SplashPage onEnter={enterMain} />;
   return <>
     <div id="app-shell">
       {surface === 'public' ? (
@@ -444,35 +453,132 @@ function App() {
       )}
     </div>
     <StatusNotice announcement={notice} />
-    <AnimatePresence initial={false} mode="wait">
-      {topLayer?.kind === 'detail' ? <BookDetailDialog key="detail" detail={topLayer.detail} store={store} categories={store.categories} updateBook={updateBook} updateBookCategories={updateBookCategories} close={() => setTopLayer(null)} opener={opener} /> : topLayer?.kind === 'confirm' ? <Confirm key="confirm" state={topLayer.confirm} close={() => setTopLayer(null)} /> : null}
-    </AnimatePresence>
+    <div className={`top-layer-context-${topLayer?.kind === 'detail' ? topLayer.detail.audience : surface}`}>
+      <AnimatePresence initial={false} mode="wait">
+        {topLayer?.kind === 'detail' ? <BookDetailDialog key="detail" detail={topLayer.detail} store={store} categories={store.categories} updateBook={updateBook} updateBookCategories={updateBookCategories} close={() => setTopLayer(null)} opener={opener} /> : topLayer?.kind === 'confirm' ? <Confirm key="confirm" state={topLayer.confirm} close={() => setTopLayer(null)} /> : null}
+      </AnimatePresence>
+    </div>
   </>;
 }
-function SplashPage({ onEnter }: { onEnter: () => void }) {
-  return <main className="splash-page">
-    <p className="splash-fair-label">FRANKFURT BOOK FAIR 2026</p>
+function useLiveReducedMotion() {
+  const query = '(prefers-reduced-motion: reduce)';
+  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return reducedMotion;
+}
+function splashEntrance(item: SplashTextMotionItem, reducedMotion: boolean) {
+  const timing = SPLASH_MOTION.items[item];
+  return {
+    initial: reducedMotion ? false : { opacity: 0, y: timing.initialYpx },
+    animate: { opacity: 1, y: 0 },
+    transition: reducedMotion ? { duration: 0 } : splashMotionTransition(item),
+  };
+}
+
+function splashLineEntrance(item: SplashLineMotionItem, reducedMotion: boolean) {
+  const timing = SPLASH_MOTION.items[item];
+  if (item === 'eventSlash') {
+    return {
+      initial: reducedMotion ? false : { opacity: .35, clipPath: 'inset(0 0 100% 0)' },
+      animate: { opacity: 1, clipPath: 'inset(0 0 0% 0)' },
+      transition: reducedMotion ? { duration: 0 } : splashMotionTransition(item),
+    };
+  }
+  const horizontal = timing.axis === 'x';
+  return {
+    initial: reducedMotion ? false : { opacity: .35, scaleX: horizontal ? 0 : 1, scaleY: horizontal ? 1 : 0 },
+    animate: { opacity: 1, scaleX: 1, scaleY: 1 },
+    style: { transformOrigin: horizontal ? 'left center' : 'center top' },
+    transition: reducedMotion ? { duration: 0 } : splashMotionTransition(item),
+  };
+}
+function SplashPage({ onEnter }: { onEnter: (focusMainHeading: boolean) => void }) {
+  const reducedMotion = useLiveReducedMotion();
+  const [phase, setPhase] = useState<'entering' | 'entered'>(() => reducedMotion ? 'entered' : 'entering');
+  const phaseRef = useRef(phase);
+  const reducedMotionRef = useRef(reducedMotion);
+  const committed = useRef(false);
+  const keyboardActivation = useRef(false);
+  const entranceGenerationRef = useRef(0);
+  const entranceGeneration = entranceGenerationRef.current;
+  phaseRef.current = phase;
+  reducedMotionRef.current = reducedMotion;
+  useEffect(() => () => { entranceGenerationRef.current += 1; }, []);
+  useEffect(() => {
+    if (reducedMotion && phaseRef.current === 'entering') {
+      entranceGenerationRef.current += 1;
+      setPhase('entered');
+    }
+  }, [reducedMotion]);
+  const completeEntrance = () => {
+    if (canCompleteSplashEntrance({
+      activeGeneration: entranceGenerationRef.current,
+      callbackGeneration: entranceGeneration,
+      reducedMotion: reducedMotionRef.current,
+      phase: phaseRef.current,
+    })) setPhase('entered');
+  };
+  const markKeyboardActivation = (event: ReactKeyboardEvent<HTMLAnchorElement>) => {
+    keyboardActivation.current = event.key === 'Enter';
+  };
+  const enter = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    const keyboardOrigin = keyboardActivation.current || event.detail === 0;
+    keyboardActivation.current = false;
+    const target = event.currentTarget.target;
+    const eligible = !event.defaultPrevented
+      && event.button === 0
+      && !event.metaKey
+      && !event.ctrlKey
+      && !event.shiftKey
+      && !event.altKey
+      && (!target || target === '_self');
+    if (!eligible) return;
+    event.preventDefault();
+    if (!commitSplashEntry(committed)) return;
+    onEnter(keyboardOrigin);
+  };
+  return <main className="splash-page" data-motion-phase={phase}>
+    <p className="splash-fair-label">
+      <motion.span className="splash-fair-rule" data-splash-motion="line-fair" aria-hidden="true" {...splashLineEntrance('fairRule', reducedMotion)} />
+      <motion.span className="splash-fair-label-text" data-splash-motion="fair-label" {...splashEntrance('fairLabel', reducedMotion)}>FRANKFURT BOOK FAIR 2026</motion.span>
+    </p>
     <div className="splash-layout">
       <section className="splash-brand-panel" aria-labelledby="splash-heading">
-        <div className="splash-logo-row"><img className="splash-logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" /></div>
-        <h1 id="splash-heading" aria-label="The ChoiceMaker Korea"><em>The</em><span>ChoiceMaker</span><span>Korea</span></h1>
-        <div className="splash-description-row">
-          <span className="splash-description-accent" aria-hidden="true" />
-          <p className="splash-description"><span>Connecting outstanding Korean children's and fiction titles</span><span>with readers and publishers around the world.</span></p>
+        <motion.span className="splash-brand-rule" data-splash-motion="line-brand" aria-hidden="true" {...splashLineEntrance('brandRule', reducedMotion)} />
+        <div className="splash-logo-row">
+          <motion.span className="splash-logo-rule" data-splash-motion="line-logo" aria-hidden="true" {...splashLineEntrance('logoRule', reducedMotion)} />
+          <motion.img className="splash-logo" data-splash-motion="logo" src={choiceMakerLogo} alt="The ChoiceMaker Korea" {...splashEntrance('logo', reducedMotion)} />
         </div>
-        <a className="splash-cta" href="#main" onClick={onEnter}>Go <span aria-hidden="true">→</span> Main</a>
+        <h1 id="splash-heading" aria-label="The ChoiceMaker Korea"><motion.em data-splash-motion="title-the" {...splashEntrance('titleThe', reducedMotion)}>The</motion.em><motion.span data-splash-motion="title-choice-maker" {...splashEntrance('titleChoiceMaker', reducedMotion)}>ChoiceMaker</motion.span><motion.span data-splash-motion="title-korea" {...splashEntrance('titleKorea', reducedMotion)}>Korea</motion.span></h1>
+        <div className="splash-description-row">
+          <motion.span className="splash-description-rule" data-splash-motion="line-description" aria-hidden="true" {...splashLineEntrance('descriptionRule', reducedMotion)} />
+          <motion.span className="splash-description-accent" data-splash-motion="line-accent" aria-hidden="true" {...splashLineEntrance('descriptionAccent', reducedMotion)} />
+          <motion.p className="splash-description" data-splash-motion="description" {...splashEntrance('description', reducedMotion)}><span>Connecting outstanding Korean children's and fiction titles</span><span>with readers and publishers around the world.</span></motion.p>
+        </div>
+        <a className="splash-cta" href="#main" onKeyDown={markKeyboardActivation} onClick={enter}>
+          <motion.span className="splash-cta-rule" data-splash-motion="line-cta" aria-hidden="true" {...splashLineEntrance('ctaRule', reducedMotion)} />
+          <motion.span className="splash-cta-content" data-splash-motion="cta" {...splashEntrance('cta', reducedMotion)}>Go <span className="splash-cta-arrow" aria-hidden="true">→</span> Main</motion.span>
+        </a>
       </section>
       <section className="splash-event-details" aria-label="Frankfurt Book Fair location and dates">
-        <p>10.7 ~ 10</p>
-        <p>HALL 4.2</p>
-        <p>C11 / C9</p>
+        <motion.p data-splash-motion="event-date" {...splashEntrance('eventDate', reducedMotion)}>10.7 ~ 10</motion.p>
+        <motion.p data-splash-motion="event-hall" {...splashEntrance('eventHall', reducedMotion)}>HALL 4.2</motion.p>
+        <p className="splash-event-stand" aria-label="C11 / C9"><motion.span data-splash-motion="event-stand-left" {...splashEntrance('eventStandLeft', reducedMotion)}>C11</motion.span> <motion.span className="splash-event-slash" data-splash-motion="line-slash" aria-hidden="true" {...splashLineEntrance('eventSlash', reducedMotion)}>/</motion.span> <motion.span data-splash-motion="event-stand-right" {...splashEntrance('eventStandRight', reducedMotion)}>C9</motion.span></p>
       </section>
     </div>
     <footer className="splash-footer">
+      <motion.span className="splash-footer-content" data-splash-motion="footer" onAnimationComplete={completeEntrance} {...splashEntrance('footer', reducedMotion)}>
       {/* Earth icon: Reicon (MIT), https://reicon.dev/illustration/earth */}
       <svg className="splash-earth-icon" data-icon="earth" viewBox="0 0 24 24" aria-hidden="true"><path fillRule="evenodd" clipRule="evenodd" d="M5.57801 5.34262C3.83444 7.02492 2.75 9.38581 2.75 12C2.75 17.1086 6.89137 21.25 12 21.25C12.1275 21.25 12.2544 21.2474 12.3807 21.2423C12.1752 20.3307 12.1474 19.1051 12.774 17.9243C13.4261 16.6955 14.7762 16.1622 15.7689 15.9182C16.289 15.7904 16.7708 15.7273 17.1211 15.6959C17.2972 15.6801 17.4423 15.6721 17.5452 15.668C17.5966 15.666 17.6377 15.6649 17.667 15.6644L17.7019 15.6639L17.7104 15.6638C19.3829 15.6464 20.1364 15.1025 20.5363 14.5836C20.8779 14.1404 21.0069 13.6971 21.1377 13.2475C21.1543 13.1903 21.171 13.133 21.1881 13.0756C21.229 12.7227 21.25 12.3638 21.25 12C21.25 9.47592 20.239 7.18797 18.5999 5.51898C18.5912 5.55304 18.5823 5.5866 18.5732 5.6196C18.4104 6.21256 18.1475 6.82114 17.8618 7.25475C17.6059 7.64313 17.1095 8.03492 16.6975 8.33094C16.4263 8.52578 16.144 8.6913 15.8879 8.83888C15.857 8.85672 15.8265 8.87428 15.7963 8.8916C15.5683 9.02278 15.3631 9.14077 15.1656 9.27123C14.7338 9.55655 14.3997 9.86363 14.1748 10.3273C14.0961 10.4897 14.0936 10.6481 14.1402 10.8177C14.2148 11.0892 14.2656 11.3946 14.2664 11.706C14.2681 12.355 13.9375 12.8817 13.5126 13.2241C13.0928 13.5625 12.5441 13.756 11.9918 13.75C9.53653 13.7231 8.02692 11.7306 7.82782 9.51448C7.74861 8.63293 7.36212 7.74121 6.87411 6.96185C6.42593 6.2461 5.92094 5.67095 5.57801 5.34262ZM6.74505 4.38662C7.1601 4.80462 7.68084 5.42381 8.14544 6.16579C8.70296 7.05616 9.21374 8.17759 9.3218 9.38025C9.47276 11.0605 10.5349 12.234 12.0082 12.25C12.2108 12.2523 12.4212 12.1772 12.5714 12.0562C12.7165 11.9393 12.7667 11.8158 12.7664 11.7099C12.766 11.5544 12.7398 11.3825 12.6937 11.2148C12.5726 10.7736 12.5553 10.2292 12.8252 9.67271C13.2102 8.87891 13.7808 8.38838 14.3388 8.01971C14.5779 7.86171 14.826 7.71918 15.0498 7.59055C15.08 7.57322 15.1097 7.55613 15.1389 7.5393C15.3941 7.39218 15.6182 7.25939 15.8222 7.11277C16.2533 6.80305 16.526 6.55581 16.6092 6.42947C16.7917 6.15255 16.9969 5.69533 17.1267 5.2225C17.2296 4.84787 17.2581 4.56036 17.2485 4.38216C15.7573 3.35281 13.949 2.75 12 2.75C10.0481 2.75 8.23748 3.35455 6.74505 4.38662ZM22.6792 13.2403C22.726 12.8333 22.75 12.4195 22.75 12C22.75 6.06294 17.9371 1.25 12 1.25C6.06294 1.25 1.25 6.06294 1.25 12C1.25 17.9371 6.06294 22.75 12 22.75C17.4604 22.75 21.9699 18.6789 22.6588 13.4064C22.6771 13.3429 22.6929 13.29 22.7071 13.2501L22.6792 13.2403ZM19.9047 16.8066C19.3091 17.0249 18.5912 17.1547 17.7261 17.1638L17.7182 17.1638V17.1638L17.7156 17.1638L17.695 17.1641C17.6755 17.1645 17.6449 17.1652 17.6044 17.1668C17.5233 17.1701 17.4034 17.1766 17.2552 17.1899C16.9571 17.2166 16.5537 17.27 16.1269 17.3749C15.2257 17.5964 14.435 17.9942 14.099 18.6274C13.6435 19.4857 13.7085 20.4196 13.8784 21.0592C16.4274 20.5334 18.5931 18.9589 19.9047 16.8066Z" /></svg>
       <span>Global rights curation from Korea</span>
-      <span className="splash-footer-rule" aria-hidden="true" />
+      </motion.span>
+      <motion.span className="splash-footer-rule" data-splash-motion="line-footer" aria-hidden="true" {...splashLineEntrance('footerRule', reducedMotion)} />
     </footer>
   </main>;
 }
